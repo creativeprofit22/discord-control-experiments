@@ -1,0 +1,15 @@
+title = "Discord Control secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Only documented placeholder domains and benchmark fixture data"
+paths = [
+  '''benchmarks/runtime/fixture/discord-user\.json''',
+  '''(^|/)\.git/''',
+  '''(^|/)\.gg/''',
+  '''(^|/)\.tools/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)reports/'''
+]

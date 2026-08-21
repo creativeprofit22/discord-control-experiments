@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "discord": {
+    "token": {
+      "source": "env",
+      "name": "DISCORD_BOT_TOKEN"
+    }
+  },
+  "mcp": {
+    "enabled": true
+  },
+  "observability": {
+    "exporter": "none"
+  }
+}

@@ -1,0 +1,44 @@
+name: Windows runtime benchmark
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: windows-2025
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: .go-version
+      - name: Prepare pinned portable toolchains
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .tools/downloads | Out-Null
+          Invoke-WebRequest https://go.dev/dl/go1.27.0.windows-amd64.zip -OutFile .tools/downloads/go.zip
+          Invoke-WebRequest https://nodejs.org/dist/v24.19.0/node-v24.19.0-win-x64.zip -OutFile .tools/downloads/node.zip
+          if ((Get-FileHash .tools/downloads/go.zip -Algorithm SHA256).Hash.ToLower() -ne 'f0c0a0d33ba94f4d2c5dbc887334ce678b21813504ddb3aafcb06e60a5a667c4') { throw 'Go checksum mismatch' }
+          if ((Get-FileHash .tools/downloads/node.zip -Algorithm SHA256).Hash.ToLower() -ne '57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73') { throw 'Node checksum mismatch' }
+          Expand-Archive .tools/downloads/go.zip -DestinationPath .tools
+          Expand-Archive .tools/downloads/node.zip -DestinationPath .tools
+          $env:COREPACK_HOME = "$PWD/.tools/corepack"
+          & .tools/node-v24.19.0-win-x64/corepack.cmd prepare pnpm@10.26.1 --activate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run benchmark
+        if: success()
+        shell: pwsh
+        run: powershell -NoProfile -File benchmarks/runtime/run.ps1
+      - name: Upload raw evidence without changing the ADR
+        if: success()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-runtime-benchmark
+          path: benchmarks/runtime/results/*

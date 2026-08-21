@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/discord-control/config/v1.schema.json",
+  "title": "Discord Control configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "discord", "mcp", "observability"],
+  "properties": {
+    "version": { "const": 1 },
+    "discord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token"],
+      "properties": {
+        "token": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "name"],
+          "properties": {
+            "source": { "const": "env" },
+            "name": { "const": "DISCORD_BOT_TOKEN" }
+          }
+        }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": { "enabled": { "type": "boolean" } }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exporter"],
+      "properties": {
+        "exporter": { "enum": ["none", "stderr", "otlp-http"] },
+        "endpoint": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

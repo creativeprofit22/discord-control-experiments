@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      opentelemetry:
+        patterns: ["go.opentelemetry.io/*"]
+  - package-ecosystem: gomod
+    directory: /benchmarks/runtime/go-candidate
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+  - package-ecosystem: npm
+    directory: /benchmarks/runtime/typescript-candidate
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    versioning-strategy: increase-if-necessary
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

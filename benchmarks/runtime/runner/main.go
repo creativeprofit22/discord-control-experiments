@@ -54,7 +54,7 @@ type candidateResult struct {
 	ColdStart       metric            `json:"coldStart"`
 	WarmREST        metric            `json:"warmRest"`
 	MCPStartup      metric            `json:"mcpStartup"`
-	PeakMemoryBytes []int64           `json:"peakMemoryBytes"`
+	PeakMemoryBytes []uint64          `json:"peakMemoryBytes"`
 	Artifact        artifactMetric    `json:"artifact"`
 	CleanBuild      metric            `json:"cleanBuild"`
 	LeanScore       float64           `json:"leanScore"`
@@ -390,7 +390,7 @@ func measureCandidate(candidate candidateCommand, fixtureURL string) candidateRe
 			break
 		}
 		result.WarmREST.Samples = append(result.WarmREST.Samples, output.DurationsNS...)
-		result.PeakMemoryBytes = append(result.PeakMemoryBytes, int64(peak))
+		result.PeakMemoryBytes = append(result.PeakMemoryBytes, peak)
 	}
 	result.WarmREST = summarize(result.WarmREST.Samples)
 	if len(result.ColdStart.Samples) != coldSamples || len(result.MCPStartup.Samples) != mcpSamples || len(result.WarmREST.Samples) != restRuns*restSamples || len(result.PeakMemoryBytes) != restRuns {
@@ -586,7 +586,7 @@ func score(results []candidateResult) (string, bool, error) {
 	value := func(candidate *candidateResult, dimension string) float64 {
 		switch dimension {
 		case "memory":
-			var peak int64
+			var peak uint64
 			for _, sample := range candidate.PeakMemoryBytes {
 				if sample > peak {
 					peak = sample
@@ -753,7 +753,7 @@ func markdownSummary(result benchmarkResult) string {
 	builder.WriteString("|---|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 	for _, c := range result.Candidates {
 		fmt.Fprintf(&builder, "| %s | %t | %.6f | %.3f / %.3f ms | %.3f / %.3f ms | %.3f / %.3f ms | %.2f MiB | %.2f MiB | %.3f ms |\n",
-			c.Name, c.Eligible, c.LeanScore, ms(c.ColdStart.MedianNS), ms(c.ColdStart.P95NS), ms(c.MCPStartup.MedianNS), ms(c.MCPStartup.P95NS), ms(c.WarmREST.MedianNS), ms(c.WarmREST.P95NS), float64(maxInt64(c.PeakMemoryBytes))/(1024*1024), float64(c.Artifact.DeployableBytes)/(1024*1024), ms(c.CleanBuild.MedianNS))
+			c.Name, c.Eligible, c.LeanScore, ms(c.ColdStart.MedianNS), ms(c.ColdStart.P95NS), ms(c.MCPStartup.MedianNS), ms(c.MCPStartup.P95NS), ms(c.WarmREST.MedianNS), ms(c.WarmREST.P95NS), float64(maxUint64(c.PeakMemoryBytes))/(1024*1024), float64(c.Artifact.DeployableBytes)/(1024*1024), ms(c.CleanBuild.MedianNS))
 	}
 	builder.WriteString("\n## Method\n\n")
 	fmt.Fprintf(&builder, "- Host: `%s/%s`; CPU: `%s`; source: `%s`.\n", result.OS, result.Architecture, result.CPU, result.SourceRevision)
@@ -771,6 +771,16 @@ func markdownSummary(result benchmarkResult) string {
 func ms(ns int64) float64 { return float64(ns) / 1e6 }
 func maxInt64(values []int64) int64 {
 	var max int64
+	for _, value := range values {
+		if value > max {
+			max = value
+		}
+	}
+	return max
+}
+
+func maxUint64(values []uint64) uint64 {
+	var max uint64
 	for _, value := range values {
 		if value > max {
 			max = value
