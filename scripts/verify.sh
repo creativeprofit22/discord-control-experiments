@@ -22,7 +22,7 @@ tool() {
 
 install_tool staticcheck honnef.co/go/tools/cmd/staticcheck@2026.2
 install_tool gosec github.com/securego/gosec/v2/cmd/gosec@v2.28.0
-install_tool govulncheck golang.org/x/vuln/cmd/govulncheck@v1.1.4
+install_tool govulncheck golang.org/x/vuln/cmd/govulncheck@v1.7.0
 install_tool gitleaks github.com/zricethezav/gitleaks/v8@v8.30.1
 install_tool go-licenses github.com/google/go-licenses/v2@v2.0.1
 if [[ ! -x "$GOBIN/syft" && ! -x "$GOBIN/syft.exe" ]]; then
