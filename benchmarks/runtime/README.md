@@ -19,8 +19,7 @@ Download archives only from the official URLs and verify their SHA-256 values in
 From the repository root:
 
 ```powershell
-$env:PATH = "$PWD\.tools\go\bin;$env:PATH"
-go run ./benchmarks/runtime/runner -output benchmarks/runtime/results/2026-08-21-windows-amd64.json
+powershell -NoProfile -File benchmarks/runtime/run.ps1
 ```
 
 The command uses fixed argv arrays, refuses fixture URLs outside literal loopback, applies per-process deadlines, terminates failed process trees, and writes JSON plus Markdown. It prefetches and audits dependencies outside measured sections.
