@@ -1,0 +1,32 @@
+# Local agent state and tools
+.gg/
+.tools/
+
+# Credentials and local configuration
+.env*
+!.env.example
+config/local*.json
+*.pem
+*.key
+
+# Build and benchmark working files
+bin/
+dist/
+build/
+coverage/
+*.coverprofile
+*.test
+*.exe
+benchmarks/runtime/work/
+benchmarks/runtime/results/*.tmp
+
+# Dependency and editor state
+node_modules/
+.pnpm-store/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Generated reports (CI artifacts)
+reports/

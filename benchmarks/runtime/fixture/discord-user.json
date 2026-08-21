@@ -1,0 +1,18 @@
+{
+  "id": "80351110224678912",
+  "username": "benchmark-user",
+  "discriminator": "0",
+  "global_name": "Benchmark User",
+  "avatar": "8342729096ea3675442027381ff50dfe",
+  "bot": true,
+  "system": false,
+  "mfa_enabled": true,
+  "banner": null,
+  "accent_color": 16711680,
+  "locale": "en-US",
+  "verified": true,
+  "email": "benchmark@example.invalid",
+  "flags": 0,
+  "premium_type": 0,
+  "public_flags": 0
+}

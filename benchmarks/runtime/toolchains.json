@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "retrieved": "2026-08-21",
+  "go": {
+    "version": "1.27.0",
+    "windowsAmd64Archive": "go1.27.0.windows-amd64.zip",
+    "sha256": "f0c0a0d33ba94f4d2c5dbc887334ce678b21813504ddb3aafcb06e60a5a667c4",
+    "source": "https://go.dev/dl/?mode=json&include=all"
+  },
+  "node": {
+    "version": "24.19.0",
+    "windowsX64Archive": "node-v24.19.0-win-x64.zip",
+    "sha256": "57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73",
+    "source": "https://nodejs.org/dist/v24.19.0/SHASUMS256.txt"
+  },
+  "pnpm": {
+    "version": "10.26.1",
+    "source": "https://registry.npmjs.org/pnpm/10.26.1"
+  }
+}
