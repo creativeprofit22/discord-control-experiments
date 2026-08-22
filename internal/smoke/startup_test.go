@@ -98,11 +98,16 @@ func TestStartupWithFakeTransportsEmitsTelemetryWithoutSecrets(t *testing.T) {
 	}
 	correlation := ""
 	seenRetryError, seenRetrySuccess := false, false
+	operationRecords := 0
 	for _, line := range lines {
 		var record map[string]any
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			t.Fatal(err)
 		}
+		if record["msg"] == "Discord security alert" {
+			continue
+		}
+		operationRecords++
 		for _, field := range []string{"operation", "adapter", "correlation_id", "result", "duration_ms", "retry_count", "build.version", "build.commit"} {
 			if _, ok := record[field]; !ok {
 				t.Fatalf("missing %s in %s", field, line)
@@ -121,7 +126,7 @@ func TestStartupWithFakeTransportsEmitsTelemetryWithoutSecrets(t *testing.T) {
 			seenRetrySuccess = true
 		}
 	}
-	if correlation == "" || !seenRetryError || !seenRetrySuccess {
+	if operationRecords < 5 || correlation == "" || !seenRetryError || !seenRetrySuccess {
 		t.Fatalf("missing correlation or retry evidence")
 	}
 	serialized := logs.String() + fmt.Sprint(spans.GetSpans()) + fmt.Sprint(resourceMetrics) + fmt.Sprint(resolved.Diagnostics())

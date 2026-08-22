@@ -5,8 +5,12 @@ Last reviewed: 2026-08-21
 
 Every lifecycle operation emits JSON logs, an OpenTelemetry span, an operation counter, and a duration histogram with `operation`, `adapter`, `correlation_id`, `result`, `duration_ms`, `retry_count`, `build.version`, and `build.commit`. Correlation IDs use 128 bits from OS randomness when absent.
 
-Resolved secret values initialize one redacting handler. Errors are sanitized before span recording. Baggage is never copied to logs. Valid `traceparent`, bounded `tracestate`, and bounded `baggage` may propagate across MCP, but correlation metadata is never an authorization signal.
+Each logical Discord execution emits `discord.command.<name>` with `discord.rest.attempt` children. Discord metrics cover requests, duration, status class, rate-limit wait/scope, retries/reason, cancellation, replay, and partial failure. Allowed dimensions are command name, fixed route template, method, status class, retry reason, rate-limit scope, result class, and API version; IDs, names, content, filenames, audit reasons, query strings, full URLs, and tokens are forbidden.
 
-Exporters are `none`, stderr JSON, or OTLP/HTTP to explicit HTTPS. Shutdown flushes metrics before traces. Build metadata contains version, commit, runtime, and dependencies but no wall-clock build timestamp.
+Secret values register concurrently with one dynamic redactor before each transport use. Logs, nested slog groups, span errors/status, and exporter output are sanitized; an intervention counter and immediate security alert identify defense-in-depth catches. Baggage is never copied to logs. Valid bounded trace context may propagate across MCP, but correlation metadata is never an authorization signal.
 
-Troubleshoot with the [startup runbook](../runbooks/startup-failure.md) and field ownership in [module contracts](../architecture/modules.md).
+Exporters are `none`, stderr JSON, or OTLP/HTTP to explicit HTTPS. Security counters use only decision/reason, approval result, execution mode, destructive class, audit result, and event kind. Approval latency has no approval-ID dimension. Immediate cross-guild, policy, approval, redaction, and audit alerts plus bounded repeated-denial/destructive windows carry only correlation ID and stable enums. Telemetry failures never change authorization; audit failures do.
+
+Shutdown flushes metrics before traces. Build metadata contains version, commit, runtime, and dependencies but no wall-clock build timestamp.
+
+See the [Discord REST telemetry contract](../reference/discord-rest-core.md), [security model](../security/model.md), and [incident runbook](../runbooks/security-incident.md). Troubleshoot with the [startup runbook](../runbooks/startup-failure.md) and field ownership in [module contracts](../architecture/modules.md).

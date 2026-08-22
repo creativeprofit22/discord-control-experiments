@@ -4,25 +4,79 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
-type Redactor struct{ values []string }
-
-func NewRedactor(values ...string) *Redactor {
-	kept := make([]string, 0, len(values))
-	for _, value := range values {
-		if value != "" {
-			kept = append(kept, value)
-		}
-	}
-	return &Redactor{values: kept}
+type Redactor struct {
+	mu            sync.RWMutex
+	values        []string
+	hook          func()
+	interventions atomic.Uint64
 }
 
-func (r *Redactor) String(value string) string {
-	for _, secret := range r.values {
-		value = strings.ReplaceAll(value, secret, "[REDACTED]")
+func NewRedactor(values ...string) *Redactor {
+	r := &Redactor{}
+	for _, value := range values {
+		r.RegisterSecret(value)
 	}
-	return value
+	return r
+}
+
+func (r *Redactor) RegisterSecret(value string) {
+	if r == nil || value == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, existing := range r.values {
+		if existing == value {
+			return
+		}
+	}
+	r.values = append(r.values, value)
+}
+
+func (r *Redactor) SetInterventionHook(hook func()) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.hook = hook
+}
+
+func (r *Redactor) Sanitize(value string) (string, bool) {
+	if r == nil {
+		return value, false
+	}
+	r.mu.RLock()
+	secrets := append([]string(nil), r.values...)
+	hook := r.hook
+	r.mu.RUnlock()
+	changed := false
+	for _, secret := range secrets {
+		if strings.Contains(value, secret) {
+			changed = true
+			value = strings.ReplaceAll(value, secret, "[REDACTED]")
+		}
+	}
+	if changed {
+		r.interventions.Add(1)
+		if hook != nil {
+			hook()
+		}
+	}
+	return value, changed
+}
+
+func (r *Redactor) String(value string) string { sanitized, _ := r.Sanitize(value); return sanitized }
+
+func (r *Redactor) Interventions() uint64 {
+	if r == nil {
+		return 0
+	}
+	return r.interventions.Load()
 }
 
 type redactingHandler struct {

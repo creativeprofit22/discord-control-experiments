@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ken-kai/discord-control-experiments/internal/application"
 	"github.com/ken-kai/discord-control-experiments/internal/buildinfo"
 	"github.com/ken-kai/discord-control-experiments/internal/domain"
 	"go.opentelemetry.io/otel/attribute"
@@ -32,17 +33,37 @@ type Options struct {
 	Redactor     *Redactor
 	SpanExporter sdktrace.SpanExporter
 	MetricReader sdkmetric.Reader
+	Security     SecurityOptions
 }
 
 type Provider struct {
-	Logger         *slog.Logger
-	TracerProvider *sdktrace.TracerProvider
-	MeterProvider  *sdkmetric.MeterProvider
-	tracer         trace.Tracer
-	counter        metric.Int64Counter
-	duration       metric.Float64Histogram
-	build          buildinfo.Info
-	redactor       *Redactor
+	Logger                    *slog.Logger
+	TracerProvider            *sdktrace.TracerProvider
+	MeterProvider             *sdkmetric.MeterProvider
+	tracer                    trace.Tracer
+	counter                   metric.Int64Counter
+	duration                  metric.Float64Histogram
+	discordRequests           metric.Int64Counter
+	discordDuration           metric.Float64Histogram
+	discordRateLimitWait      metric.Float64Histogram
+	discordRetries            metric.Int64Counter
+	discordCancellations      metric.Int64Counter
+	discordPartial            metric.Int64Counter
+	cliFailures               metric.Int64Counter
+	securityEvents            metric.Int64Counter
+	approvalLatency           metric.Float64Histogram
+	reconciliationPlanSize    metric.Int64Histogram
+	reconciliationRisk        metric.Int64Counter
+	reconciliationDrift       metric.Int64Counter
+	reconciliationConflicts   metric.Int64Counter
+	reconciliationStepLatency metric.Float64Histogram
+	reconciliationRetries     metric.Int64Counter
+	reconciliationPartial     metric.Int64Counter
+	reconciliationResumes     metric.Int64Counter
+	reconciliationOutcomes    metric.Int64Counter
+	securityMonitor           *securityMonitor
+	build                     buildinfo.Info
+	redactor                  *Redactor
 }
 
 func New(ctx context.Context, options Options) (*Provider, error) {
@@ -72,8 +93,85 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	discordRequests, err := meter.Int64Counter("discord.rest.request.count")
+	if err != nil {
+		return nil, err
+	}
+	discordDuration, err := meter.Float64Histogram("discord.rest.request.duration", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	discordRateLimitWait, err := meter.Float64Histogram("discord.rest.ratelimit.wait", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	discordRetries, err := meter.Int64Counter("discord.rest.retry.count")
+	if err != nil {
+		return nil, err
+	}
+	discordCancellations, err := meter.Int64Counter("discord.rest.cancellation.count")
+	if err != nil {
+		return nil, err
+	}
+	discordPartial, err := meter.Int64Counter("discord.command.partial.count")
+	if err != nil {
+		return nil, err
+	}
+	cliFailures, err := meter.Int64Counter("discord.cli.failure.count")
+	if err != nil {
+		return nil, err
+	}
 	logger := slog.New(redactingHandler{next: slog.NewJSONHandler(options.Writer, nil), redactor: options.Redactor})
-	return &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, build: options.Build, redactor: options.Redactor}, nil
+	securityEvents, err := meter.Int64Counter("discord.security.event.count")
+	if err != nil {
+		return nil, err
+	}
+	approvalLatency, err := meter.Float64Histogram("discord.approval.latency", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	reconciliationPlanSize, err := meter.Int64Histogram("discord.reconciliation.plan.operation_count")
+	if err != nil {
+		return nil, err
+	}
+	reconciliationRisk, err := meter.Int64Counter("discord.reconciliation.plan.risk_count")
+	if err != nil {
+		return nil, err
+	}
+	reconciliationDrift, err := meter.Int64Counter("discord.reconciliation.drift.count")
+	if err != nil {
+		return nil, err
+	}
+	reconciliationConflicts, err := meter.Int64Counter("discord.reconciliation.unmanaged_conflict.count")
+	if err != nil {
+		return nil, err
+	}
+	reconciliationStepLatency, err := meter.Float64Histogram("discord.reconciliation.step.duration", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	reconciliationRetries, err := meter.Int64Counter("discord.reconciliation.retry.count")
+	if err != nil {
+		return nil, err
+	}
+	reconciliationPartial, err := meter.Int64Counter("discord.reconciliation.partial.count")
+	if err != nil {
+		return nil, err
+	}
+	reconciliationResumes, err := meter.Int64Counter("discord.reconciliation.resume.count")
+	if err != nil {
+		return nil, err
+	}
+	reconciliationOutcomes, err := meter.Int64Counter("discord.reconciliation.run.outcome_count")
+	if err != nil {
+		return nil, err
+	}
+	monitor := newSecurityMonitor(options.Security, logger)
+	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
+	options.Redactor.SetInterventionHook(func() {
+		provider.RecordSecurityEvent(context.Background(), domain.SecurityEvent{Kind: "redaction_intervention", OccurredAt: time.Now()})
+	})
+	return provider, nil
 }
 
 func exporters(ctx context.Context, options Options) (sdktrace.SpanExporter, sdkmetric.Reader, error) {
@@ -142,6 +240,105 @@ func (p *Provider) Observe(ctx context.Context, operation domain.Operation, fn f
 		FieldBuildVersion, p.build.Version, FieldBuildCommit, p.build.Commit,
 	)
 	return err
+}
+
+func (p *Provider) ObserveDiscordCommand(ctx context.Context, observation *application.DiscordObservation, fn func(context.Context) error) error {
+	if observation == nil || fn == nil {
+		return errors.New("discord observation and function are required")
+	}
+	attrs := []attribute.KeyValue{attribute.String(FieldCommandName, observation.CommandName), attribute.String(FieldRouteTemplate, observation.RouteTemplate), attribute.String(FieldHTTPMethod, observation.Method), attribute.String(FieldAPIPathVersion, "v10")}
+	ctx, span := p.tracer.Start(ctx, "discord.command."+observation.CommandName, trace.WithAttributes(attrs...))
+	started := time.Now()
+	err := fn(ctx)
+	durationMS := float64(time.Since(started).Microseconds()) / 1000
+	resultClass := observation.ResultClass
+	if resultClass == "" {
+		if err != nil {
+			resultClass = "error"
+		} else {
+			resultClass = "ok"
+		}
+	}
+	attemptAttrs := append(append([]attribute.KeyValue{}, attrs...), attribute.String(FieldStatusClass, observation.StatusClass), attribute.String(FieldResult, resultClass))
+	for attempt := 0; attempt < observation.Attempts; attempt++ {
+		_, child := p.tracer.Start(ctx, "discord.rest.attempt", trace.WithAttributes(append(attemptAttrs, attribute.Int(FieldRetryCount, attempt))...))
+		child.End()
+	}
+	if err != nil {
+		sanitized := errors.New(p.redactor.String(err.Error()))
+		span.RecordError(sanitized)
+		span.SetStatus(codes.Error, sanitized.Error())
+		var cancellation *domain.CancellationError
+		if errors.As(err, &cancellation) {
+			p.discordCancellations.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+	}
+	span.SetAttributes(attribute.String(FieldResult, resultClass), attribute.String(FieldStatusClass, observation.StatusClass))
+	span.End()
+	metricAttrs := metric.WithAttributes(attemptAttrs...)
+	requests := observation.Attempts
+	if requests < 1 {
+		requests = 1
+	}
+	p.discordRequests.Add(ctx, int64(requests), metricAttrs)
+	p.discordDuration.Record(ctx, durationMS, metricAttrs)
+	p.discordRateLimitWait.Record(ctx, 0, metric.WithAttributes(append(attrs, attribute.String(FieldRateLimitScope, observation.RateLimitScope))...))
+	if observation.Attempts > 1 {
+		p.discordRetries.Add(ctx, int64(observation.Attempts-1), metric.WithAttributes(append(attrs, attribute.String(FieldRetryReason, observation.RetryReason))...))
+	}
+	if observation.Partial != nil {
+		p.discordPartial.Add(ctx, 1, metric.WithAttributes(append(attrs, attribute.String(FieldResult, string(observation.Partial.Outcome)))...))
+	}
+	return err
+}
+
+func (p *Provider) ObserveReconciliation(ctx context.Context, observation application.ReconciliationObservation) {
+	spanAttributes := []attribute.KeyValue{
+		attribute.String(FieldCorrelationID, string(observation.CorrelationID)),
+		attribute.String(FieldPlanHashPrefix, observation.PlanHashPrefix),
+		attribute.String(FieldRunID, string(observation.RunID)),
+		attribute.String(FieldStepID, string(observation.OperationID)),
+		attribute.String(FieldResourceKind, string(observation.ResourceKind)),
+		attribute.String(FieldRisk, string(observation.Risk)),
+		attribute.String(FieldOutcome, observation.Outcome),
+	}
+	_, span := p.tracer.Start(ctx, "reconciliation."+observation.Outcome, trace.WithAttributes(spanAttributes...))
+	span.End()
+	metricAttributes := metric.WithAttributes(
+		attribute.String(FieldResourceKind, string(observation.ResourceKind)),
+		attribute.String(FieldRisk, string(observation.Risk)),
+		attribute.String(FieldOutcome, observation.Outcome),
+	)
+	if observation.OperationCount > 0 {
+		p.reconciliationPlanSize.Record(ctx, int64(observation.OperationCount), metricAttributes)
+	}
+	for risk, count := range observation.RiskCounts {
+		if count > 0 {
+			p.reconciliationRisk.Add(ctx, int64(count), metric.WithAttributes(attribute.String(FieldRisk, string(risk))))
+		}
+	}
+	if observation.ManagedDrift > 0 {
+		p.reconciliationDrift.Add(ctx, int64(observation.ManagedDrift), metricAttributes)
+	}
+	if observation.UnmanagedConflicts > 0 {
+		p.reconciliationConflicts.Add(ctx, int64(observation.UnmanagedConflicts), metricAttributes)
+	}
+	if observation.Latency > 0 {
+		p.reconciliationStepLatency.Record(ctx, float64(observation.Latency.Microseconds())/1000, metricAttributes)
+	}
+	if observation.Retries > 0 {
+		p.reconciliationRetries.Add(ctx, int64(observation.Retries), metricAttributes)
+	}
+	if observation.Partial {
+		p.reconciliationPartial.Add(ctx, 1, metricAttributes)
+	}
+	if observation.Resumed {
+		p.reconciliationResumes.Add(ctx, 1, metricAttributes)
+	}
+	if observation.Outcome != "" {
+		p.reconciliationOutcomes.Add(ctx, 1, metricAttributes)
+	}
+	p.Logger.InfoContext(ctx, "reconciliation event", FieldCorrelationID, observation.CorrelationID, FieldPlanHashPrefix, observation.PlanHashPrefix, FieldRunID, observation.RunID, FieldStepID, observation.OperationID, FieldResourceKind, observation.ResourceKind, FieldRisk, observation.Risk, FieldOutcome, observation.Outcome, FieldRetryCount, observation.Retries)
 }
 
 func (p *Provider) Shutdown(ctx context.Context) error {
