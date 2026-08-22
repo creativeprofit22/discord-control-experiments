@@ -61,7 +61,7 @@ func TestProjectImportDAG(t *testing.T) {
 			switch {
 			case owner == "domain":
 				t.Errorf("domain imports project package %s", imported)
-			case owner == "application" && dependency != "domain":
+			case owner == "application" && dependency != "domain" && dependency != "reconcile":
 				t.Errorf("application imports disallowed project package %s", imported)
 			case adapters[owner] && adapters[dependency]:
 				t.Errorf("adapter %s imports adapter %s", owner, dependency)

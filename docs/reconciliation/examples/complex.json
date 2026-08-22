@@ -1,0 +1,23 @@
+{
+  "schema_version": "discord-control/v1",
+  "guild_id": "100000000000000001",
+  "application_id": "200000000000000001",
+  "ownership": {"owner": "example-team", "adopt_by_name": false, "delete_orphans": false, "protect_deletes": true},
+  "categories": [{"logical_id": "community", "name": "Community", "position": 0}],
+  "channels": [
+    {"logical_id": "announcements", "name": "announcements", "type": 5, "category": {"kind": "category", "logical_id": "community"}, "position": 0, "permission_overwrites": []},
+    {"logical_id": "help-forum", "name": "help-forum", "type": 15, "category": {"kind": "category", "logical_id": "community"}, "position": 1,
+      "forum": {"available_tags": [{"name": "question", "moderated": false}], "default_reaction_emoji": {"emoji_name": "✅"}, "default_sort_order": 1, "default_forum_layout": 1},
+      "permission_overwrites": [{"target": {"kind": "role", "logical_id": "member"}, "type": 0, "allow": "1024", "deny": "0"}]}
+  ],
+  "roles": [{"logical_id": "member", "name": "Member", "permissions": "1024", "position": 1}],
+  "webhooks": [{"logical_id": "announcer", "name": "announcer", "channel": {"kind": "channel", "logical_id": "announcements"}}],
+  "application_commands": [{"logical_id": "rules", "type": 1, "name": "rules", "description": "Show server rules", "options": [], "default_member_permissions": "0"}],
+  "onboarding": {
+    "enabled": true,
+    "mode": 0,
+    "default_channels": [{"kind": "channel", "logical_id": "announcements"}],
+    "prompts": [{"logical_id": "interests", "type": 0, "title": "Choose your interests", "single_select": false, "required": true, "in_onboarding": true,
+      "options": [{"logical_id": "help", "title": "Helping others", "channels": [{"kind": "channel", "logical_id": "help-forum"}], "roles": [{"kind": "role", "logical_id": "member"}]}]}]
+  }
+}
