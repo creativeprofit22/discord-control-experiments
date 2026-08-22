@@ -32,7 +32,18 @@ jobs:
           $env:COREPACK_HOME = "$PWD/.tools/corepack"
           & .tools/node-v24.19.0-win-x64/corepack.cmd prepare pnpm@10.26.1 --activate
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Run benchmark
+      - name: Verify generated CLI artifacts
+        shell: pwsh
+        run: |
+          & .tools/go/bin/go.exe generate ./internal/cli
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (git status --short -- docs/cli internal/cli/testdata) { throw 'Generated CLI artifacts drifted.' }
+          & .tools/go/bin/go.exe test ./internal/docs ./internal/cli/generate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run CLI latency gates
+        shell: pwsh
+        run: powershell -NoProfile -File benchmarks/runtime/run-cli.ps1 -VerifyThresholds
+      - name: Run foundation benchmark
         if: success()
         shell: pwsh
         run: powershell -NoProfile -File benchmarks/runtime/run.ps1
@@ -41,4 +52,6 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-runtime-benchmark
-          path: benchmarks/runtime/results/*
+          path: |
+            benchmarks/runtime/results/*
+            benchmarks/runtime/work/discord-control-cli.exe
