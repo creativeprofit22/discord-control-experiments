@@ -1,0 +1,8 @@
+{
+  "protocol": "2026-07-28",
+  "sdk": "github.com/modelcontextprotocol/go-sdk v1.7.0",
+  "upstream": "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/cbd57657ec769b942263a5251afc05959fc4ce58/schema/2026-07-28/schema.json",
+  "revision": "cbd57657ec769b942263a5251afc05959fc4ce58",
+  "sha256": "ef70b61f99b6d2e5e3b46863822eab08dff6a45bedc7a08914e0e5b133f40203",
+  "refresh": "sha256sum schema/2026-07-28/schema.json; review protocol diffs before changing this fixture"
+}

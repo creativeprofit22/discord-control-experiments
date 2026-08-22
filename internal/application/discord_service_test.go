@@ -209,7 +209,7 @@ func TestDestructiveClassesRequireApproval(t *testing.T) {
 	}
 	roleSpec, _ := LookupCommandSpec("create_role")
 	permissions := domain.PermissionBits("1")
-	if destructiveForCommand(domain.CreateRole{CommandContext: domain.CommandContext{GuildID: "1"}, Name: "plain"}, roleSpec) != domain.DestructiveNone || destructiveForCommand(domain.CreateRole{CommandContext: domain.CommandContext{GuildID: "1"}, Name: "privileged", Permissions: &permissions}, roleSpec) != domain.DestructiveRoleEscalation {
+	if DestructiveClassForCommand(domain.CreateRole{CommandContext: domain.CommandContext{GuildID: "1"}, Name: "plain"}, roleSpec) != domain.DestructiveNone || DestructiveClassForCommand(domain.CreateRole{CommandContext: domain.CommandContext{GuildID: "1"}, Name: "privileged", Permissions: &permissions}, roleSpec) != domain.DestructiveRoleEscalation {
 		t.Fatal("permission-bearing role creation must be the only escalated role-create form")
 	}
 	if !domain.RequiresApproval(domain.DestructiveLockdown) {

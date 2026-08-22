@@ -21,7 +21,7 @@ func (s *DiscordService) PrepareOperation(ctx context.Context, invocation Invoca
 		return domain.OperationPlan{}, err
 	}
 	resources := spec.ResourceExtractor(command)
-	destructive := destructiveForCommand(command, spec)
+	destructive := DestructiveClassForCommand(command, spec)
 	if !domain.RequiresApproval(destructive) {
 		return domain.OperationPlan{}, &domain.ApprovalError{Reason: "operation is not destructive"}
 	}

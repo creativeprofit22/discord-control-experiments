@@ -127,7 +127,7 @@ func (s *DiscordService) dispatchDiscord(ctx context.Context, invocation Invocat
 		return untypedExecution{}, ownershipErr
 	}
 	resources := spec.ResourceExtractor(command)
-	destructiveClass := destructiveForCommand(command, spec)
+	destructiveClass := DestructiveClassForCommand(command, spec)
 	request := domain.PolicyRequest{Principal: invocation.Principal, ActorID: invocation.ActorID, GuildID: command.GuildScope(), Operation: domain.OperationName(spec.Name), Capability: spec.Capability, Resources: resources, Mode: invocation.RequestedMode, DestructiveClass: destructiveClass, CorrelationID: invocation.CorrelationID}
 	decision, policyErr := s.evaluatePolicy(ctx, request)
 	if policyErr != nil || !decision.Allowed {
@@ -351,7 +351,7 @@ func (s *DiscordService) auditEvent(invocation Invocation, command domain.Comman
 	if contextData := commandContext(command); contextData.AuditReason != nil {
 		reason = *contextData.AuditReason
 	}
-	return domain.AuditEvent{Kind: domain.AuditEventKind(kind), Timestamp: s.now(), ActorID: decision.ActorID, ApproverID: approval.ApproverID, Adapter: invocation.Principal.Adapter, GuildID: command.GuildScope(), Operation: domain.OperationName(spec.Name), Capability: spec.Capability, ResourceKinds: resourceKinds(spec.ResourceExtractor(command)), Intent: spec.IntentSanitizer(command), Decision: decision.Allowed, Reason: decision.Reason, ApprovalID: approval.ID, Mode: decision.EffectiveMode, DestructiveClass: destructiveForCommand(command, spec), Result: result, CorrelationID: invocation.CorrelationID, ParentCorrelationID: invocation.ParentCorrelationID, AuditReason: reason, OperationHash: hash}
+	return domain.AuditEvent{Kind: domain.AuditEventKind(kind), Timestamp: s.now(), ActorID: decision.ActorID, ApproverID: approval.ApproverID, Adapter: invocation.Principal.Adapter, GuildID: command.GuildScope(), Operation: domain.OperationName(spec.Name), Capability: spec.Capability, ResourceKinds: resourceKinds(spec.ResourceExtractor(command)), Intent: spec.IntentSanitizer(command), Decision: decision.Allowed, Reason: decision.Reason, ApprovalID: approval.ID, Mode: decision.EffectiveMode, DestructiveClass: DestructiveClassForCommand(command, spec), Result: result, CorrelationID: invocation.CorrelationID, ParentCorrelationID: invocation.ParentCorrelationID, AuditReason: reason, OperationHash: hash}
 }
 
 func operationHash(request domain.PolicyRequest, command domain.Command) (string, error) {

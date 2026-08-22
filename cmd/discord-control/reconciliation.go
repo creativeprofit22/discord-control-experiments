@@ -132,7 +132,7 @@ func configuredActor(policy config.Policy, principal domain.Principal) (domain.A
 			}
 		}
 	}
-	return "", errors.New("CLI principal is not configured in policy")
+	return "", fmt.Errorf("%s principal is not configured in policy", principal.Adapter)
 }
 func configuredActorMode(policy config.Policy, actorID domain.ActorID) domain.ExecutionMode {
 	for _, actor := range policy.Actors {

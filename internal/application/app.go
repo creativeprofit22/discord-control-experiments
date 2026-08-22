@@ -8,6 +8,8 @@ import (
 	"github.com/ken-kai/discord-control-experiments/internal/domain"
 )
 
+type terminalLifecycle interface{ Done() <-chan error }
+
 type App struct {
 	transports []Lifecycle
 	telemetry  Telemetry
@@ -53,8 +55,25 @@ func (a *App) Run(ctx context.Context) error {
 		}
 		started = append(started, transport)
 	}
-	<-ctx.Done()
-	return a.stop(context.WithoutCancel(ctx), started, correlationID)
+	terminal := make(chan error, len(started))
+	for _, transport := range started {
+		if completed, ok := transport.(terminalLifecycle); ok {
+			go func(done <-chan error) {
+				select {
+				case result := <-done:
+					terminal <- result
+				case <-ctx.Done():
+				}
+			}(completed.Done())
+		}
+	}
+	var terminalErr error
+	select {
+	case <-ctx.Done():
+	case terminalErr = <-terminal:
+	}
+	stopErr := a.stop(context.WithoutCancel(ctx), started, correlationID)
+	return errors.Join(terminalErr, stopErr)
 }
 
 func (a *App) stop(ctx context.Context, started []Lifecycle, correlationID domain.CorrelationID) error {

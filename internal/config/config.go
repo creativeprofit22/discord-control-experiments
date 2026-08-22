@@ -28,7 +28,14 @@ type WebhookSecret struct {
 	URL  SecretReference `json:"url"`
 }
 type MCP struct {
-	Enabled *bool `json:"enabled"`
+	Enabled            *bool    `json:"enabled"`
+	GuildID            string   `json:"guildId,omitempty"`
+	Mode               string   `json:"mode,omitempty"`
+	Toolsets           []string `json:"toolsets,omitempty"`
+	ReadOnly           *bool    `json:"readOnly,omitempty"`
+	MaxMessageBytes    int      `json:"maxMessageBytes,omitempty"`
+	MaxConcurrentCalls int      `json:"maxConcurrentCalls,omitempty"`
+	CallTimeout        string   `json:"callTimeout,omitempty"`
 }
 type Observability struct {
 	Exporter string `json:"exporter"`
@@ -97,6 +104,7 @@ type Resolved struct {
 	DiscordWebhooks map[string]Secret
 	SecretProvider  *EnvironmentSecretProvider
 	MCPEnabled      bool
+	MCP             MCP
 	Observability   Observability
 	Policy          Policy
 	Approvals       Approvals
@@ -114,6 +122,25 @@ type Diagnostics struct {
 type SecretResolver interface{ ResolveEnvironment(string) (string, bool) }
 
 func applySecurityDefaults(file *File) {
+	if file.MCP.Mode == "" {
+		file.MCP.Mode = "read_only"
+	}
+	if file.MCP.Toolsets == nil {
+		file.MCP.Toolsets = []string{"diagnostic"}
+	}
+	if file.MCP.ReadOnly == nil {
+		value := true
+		file.MCP.ReadOnly = &value
+	}
+	if file.MCP.MaxMessageBytes == 0 {
+		file.MCP.MaxMessageBytes = 1 << 20
+	}
+	if file.MCP.MaxConcurrentCalls == 0 {
+		file.MCP.MaxConcurrentCalls = 4
+	}
+	if file.MCP.CallTimeout == "" {
+		file.MCP.CallTimeout = "30s"
+	}
 	if file.Policy == nil {
 		file.Policy = &Policy{Mode: "read_only", Actors: []PolicyActor{}}
 	}
@@ -186,7 +213,7 @@ func Load(reader io.Reader, resolver SecretResolver) (Resolved, error) {
 		}
 		webhooks[configured.Name] = handle
 	}
-	return Resolved{Version: file.Version, DiscordToken: token, DiscordWebhooks: webhooks, SecretProvider: provider, MCPEnabled: *file.MCP.Enabled, Observability: file.Observability, Policy: *file.Policy, Approvals: *file.Approvals, Audit: *file.Audit, SecurityAlerts: *file.SecurityAlerts, Reconciliation: *file.Reconciliation}, nil
+	return Resolved{Version: file.Version, DiscordToken: token, DiscordWebhooks: webhooks, SecretProvider: provider, MCPEnabled: *file.MCP.Enabled, MCP: file.MCP, Observability: file.Observability, Policy: *file.Policy, Approvals: *file.Approvals, Audit: *file.Audit, SecurityAlerts: *file.SecurityAlerts, Reconciliation: *file.Reconciliation}, nil
 }
 
 func (r Resolved) Diagnostics() Diagnostics {

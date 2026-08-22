@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
-const configJSON = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":true},"observability":{"exporter":"none"}}`
+const configJSON = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":true,"guildId":"123456789012345678"},"observability":{"exporter":"none"}}`
 const canary = "smoke-canary-token-83fd"
 
 type resolver struct{}

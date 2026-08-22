@@ -50,6 +50,8 @@ type Provider struct {
 	discordCancellations      metric.Int64Counter
 	discordPartial            metric.Int64Counter
 	cliFailures               metric.Int64Counter
+	mcpInvocations            metric.Int64Counter
+	mcpDuration               metric.Float64Histogram
 	securityEvents            metric.Int64Counter
 	approvalLatency           metric.Float64Histogram
 	reconciliationPlanSize    metric.Int64Histogram
@@ -121,6 +123,14 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	mcpInvocations, err := meter.Int64Counter("discord.mcp.invocation.count")
+	if err != nil {
+		return nil, err
+	}
+	mcpDuration, err := meter.Float64Histogram("discord.mcp.invocation.duration", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
 	logger := slog.New(redactingHandler{next: slog.NewJSONHandler(options.Writer, nil), redactor: options.Redactor})
 	securityEvents, err := meter.Int64Counter("discord.security.event.count")
 	if err != nil {
@@ -167,7 +177,7 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 		return nil, err
 	}
 	monitor := newSecurityMonitor(options.Security, logger)
-	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
+	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
 	options.Redactor.SetInterventionHook(func() {
 		provider.RecordSecurityEvent(context.Background(), domain.SecurityEvent{Kind: "redaction_intervention", OccurredAt: time.Now()})
 	})

@@ -90,6 +90,12 @@ func executeCLI(args []string, stdout, stderr io.Writer) int {
 	started := time.Now()
 	result, runErr := run(commandContext, command, stdout, stderr, correlationID)
 	runErr = cli.NormalizeCancellation(commandContext, signalContext, runErr)
+	if command.Name == "run" {
+		if runErr != nil {
+			_, _ = fmt.Fprintln(stderr, "discord-control MCP runtime stopped with an error")
+		}
+		return cli.ExitCode(runErr)
+	}
 	var envelope cli.Envelope
 	if runErr != nil {
 		envelope = cli.FailureEnvelope(correlationID, runErr)
@@ -142,10 +148,6 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 	if err != nil {
 		return application.OperatorResult{}, fmt.Errorf("initialize observability: %w", err)
 	}
-	mcpServer, err := mcpadapter.New(provider.Logger, resolved.MCPEnabled)
-	if err != nil {
-		return application.OperatorResult{}, err
-	}
 	policyService, err := compilePolicy(resolved.Policy)
 	if err != nil {
 		return application.OperatorResult{}, fmt.Errorf("initialize policy: %w", err)
@@ -183,17 +185,6 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		_ = auditSink.Close()
 		return application.OperatorResult{}, fmt.Errorf("initialize reconciliation service: %w", err)
 	}
-	if command.Name == "run" {
-		app, appErr := application.New(discordClient, mcpServer, provider, systemClock{}, observability.CorrelationID, discordService)
-		if appErr != nil {
-			_ = auditSink.Close()
-			return application.OperatorResult{}, appErr
-		}
-		runErr := app.Run(ctx)
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		return application.OperatorResult{Kind: "Runtime", Value: map[string]string{"status": "stopped"}}, errors.Join(runErr, provider.Shutdown(shutdownCtx), auditSink.Close())
-	}
 	handlers := reconciliationOperatorHandlers(command, resolved, configPath, reconciliationService)
 	jobService, jobErr := application.NewJobService(stateStore, reconciliationService, systemClock{})
 	if jobErr != nil {
@@ -225,13 +216,6 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		_ = auditSink.Close()
 		return application.OperatorResult{}, operatorErr
 	}
-	principal := domain.Principal{Adapter: "cli", Subject: "local-process", AuthenticationMethod: "os-process"}
-	actorID, actorErr := configuredActor(resolved.Policy, principal)
-	if actorErr != nil {
-		_ = auditSink.Close()
-		return application.OperatorResult{}, actorErr
-	}
-	invocation := application.Invocation{Principal: principal, ActorID: actorID, RequestedMode: configuredActorMode(resolved.Policy, actorID), ApprovalID: command.ApprovalID, CorrelationID: correlationID}
 	maximumApprovalTTL, ttlErr := time.ParseDuration(resolved.Approvals.MaxTTL)
 	if ttlErr != nil {
 		_ = auditSink.Close()
@@ -242,6 +226,50 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		_ = auditSink.Close()
 		return application.OperatorResult{}, coordinatorErr
 	}
+	if command.Name == "run" {
+		mcpPrincipal := domain.Principal{Adapter: "mcp", Subject: "local-stdio", AuthenticationMethod: "os-process"}
+		mcpActor, actorErr := configuredActor(resolved.Policy, mcpPrincipal)
+		if actorErr != nil {
+			_ = auditSink.Close()
+			return application.OperatorResult{}, actorErr
+		}
+		callTimeout, timeoutErr := time.ParseDuration(resolved.MCP.CallTimeout)
+		if timeoutErr != nil {
+			_ = auditSink.Close()
+			return application.OperatorResult{}, timeoutErr
+		}
+		toolsets := make([]application.Toolset, len(resolved.MCP.Toolsets))
+		for index, value := range resolved.MCP.Toolsets {
+			toolsets[index] = application.Toolset(value)
+		}
+		mcpServer, mcpErr := mcpadapter.New(mcpadapter.Options{Enabled: resolved.MCPEnabled, ImplementationVersion: buildinfo.Version, GuildID: domain.GuildID(resolved.MCP.GuildID), ActorID: mcpActor, Mode: domain.ExecutionMode(resolved.MCP.Mode), Toolsets: toolsets, ReadOnly: *resolved.MCP.ReadOnly, MaxMessageBytes: resolved.MCP.MaxMessageBytes, MaxConcurrentCalls: resolved.MCP.MaxConcurrentCalls, CallTimeout: callTimeout, Logger: provider.Logger, Input: os.Stdin, Output: stdout, Policy: policyService, Operator: operatorService, Approval: approvalCoordinator, Observer: provider, Clock: time.Now, Correlation: func() domain.CorrelationID {
+			id, valueErr := observability.CorrelationID()
+			if valueErr != nil {
+				return ""
+			}
+			return id
+		}})
+		if mcpErr != nil {
+			_ = auditSink.Close()
+			return application.OperatorResult{}, mcpErr
+		}
+		app, appErr := application.New(discordClient, mcpServer, provider, systemClock{}, observability.CorrelationID, discordService)
+		if appErr != nil {
+			_ = auditSink.Close()
+			return application.OperatorResult{}, appErr
+		}
+		runErr := app.Run(ctx)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		return application.OperatorResult{Kind: "Runtime", Value: map[string]string{"status": "stopped"}}, errors.Join(runErr, provider.Shutdown(shutdownCtx), auditSink.Close())
+	}
+	principal := domain.Principal{Adapter: "cli", Subject: "local-process", AuthenticationMethod: "os-process"}
+	actorID, actorErr := configuredActor(resolved.Policy, principal)
+	if actorErr != nil {
+		_ = auditSink.Close()
+		return application.OperatorResult{}, actorErr
+	}
+	invocation := application.Invocation{Principal: principal, ActorID: actorID, RequestedMode: configuredActorMode(resolved.Policy, actorID), ApprovalID: command.ApprovalID, CorrelationID: correlationID}
 	result, dispatchErr := cli.Dispatch(ctx, operatorService, command, cli.DispatchOptions{Root: filepath.Dir(configPath), Stdin: os.Stdin, Invocation: invocation, Version: buildinfo.Version, Commit: buildinfo.Commit, Approvals: approvalCoordinator, Confirm: ttyConfirmation(os.Stdin, stderr)})
 	if dispatchErr != nil {
 		provider.RecordCLIFailure(ctx, cli.FailureClass(dispatchErr))

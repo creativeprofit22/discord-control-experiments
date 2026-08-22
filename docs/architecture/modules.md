@@ -14,7 +14,7 @@ Last reviewed: 2026-08-21
 | `reconcile` | strict schema/migration, canonical hashes, snapshots, matching, diff, DAG, risk, deterministic rendering | network, clock, filesystem, policy, telemetry |
 | `state` | contained atomic bindings/saved plans, synced hash-chained apply journals, exclusive guild locks | tokens, Discord calls, policy decisions |
 | `cli` | strict argv parsing and typed command values | shell execution, process exit, Discord calls |
-| `mcp` | stdio, discovery, bounded tools, trace metadata validation | remote identity or arbitrary requests |
+| `mcp` | protocol 2026-07-28 bounded stdio, scoped deterministic inventory, closed schemas, fixed invocation context, form elicitation translation | Discord transport, remote identity, policy authority, raw HTTP/URL/script requests |
 | `interactions` | typed interaction dispatch | Gateway consumption |
 | `gateway` | Gateway event consumption | webhook substitution |
 | `jobs` | context cancellation and concurrency bounds | unbounded goroutines |

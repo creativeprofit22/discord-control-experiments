@@ -23,6 +23,9 @@ func validate(file File) error {
 	if file.MCP.Enabled == nil {
 		return errors.New("mcp enabled field is required")
 	}
+	if err := validateMCP(file.MCP); err != nil {
+		return err
+	}
 	if !environmentAllowed(file.Discord.Token.Name, file.SecretEnvironmentAllowlist) {
 		return errors.New("discord token environment name is not allowlisted")
 	}
@@ -50,6 +53,43 @@ func validate(file File) error {
 		}
 	default:
 		return errors.New("unsupported observability exporter")
+	}
+	return nil
+}
+
+func validateMCP(value MCP) error {
+	if !validMode(value.Mode) {
+		return errors.New("mcp mode must be read_only, dry_run, or apply")
+	}
+	if value.ReadOnly == nil {
+		return errors.New("mcp readOnly setting is required after defaults")
+	}
+	if *value.Enabled && !validSnowflake(value.GuildID) {
+		return errors.New("enabled mcp requires one valid guildId")
+	}
+	if !*value.Enabled && value.GuildID != "" && !validSnowflake(value.GuildID) {
+		return errors.New("mcp guildId is invalid")
+	}
+	if len(value.Toolsets) == 0 || len(value.Toolsets) > 4 {
+		return errors.New("mcp toolsets must contain one to four values")
+	}
+	allowed := map[string]bool{"build": true, "moderation": true, "news": true, "diagnostic": true}
+	seen := map[string]bool{}
+	for _, toolset := range value.Toolsets {
+		if !allowed[toolset] || seen[toolset] {
+			return errors.New("mcp toolsets contain an unknown or duplicate value")
+		}
+		seen[toolset] = true
+	}
+	if value.MaxMessageBytes < 4096 || value.MaxMessageBytes > 8<<20 {
+		return errors.New("mcp maxMessageBytes must be between 4096 and 8388608")
+	}
+	if value.MaxConcurrentCalls < 1 || value.MaxConcurrentCalls > 32 {
+		return errors.New("mcp maxConcurrentCalls must be between 1 and 32")
+	}
+	timeout, err := time.ParseDuration(value.CallTimeout)
+	if err != nil || timeout < time.Second || timeout > 5*time.Minute {
+		return errors.New("mcp callTimeout must be between 1s and 5m")
 	}
 	return nil
 }
@@ -88,6 +128,7 @@ var validCapabilities = map[string]bool{
 	"member.read": true, "member.moderate": true, "message.read": true, "message.manage": true, "webhook.read": true,
 	"webhook.manage": true, "invite.read": true, "invite.manage": true, "application_command.read": true,
 	"application_command.manage": true, "onboarding.read": true, "onboarding.manage": true, "scheduled_event.read": true, "scheduled_event.manage": true,
+	"auto_moderation.read": true, "auto_moderation.manage": true,
 }
 
 func validatePolicy(policy Policy) error {

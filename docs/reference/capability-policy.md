@@ -13,7 +13,7 @@ Every transport attempt passes `dispatchDiscord` in this order: sealed command a
 
 ## Complete command matrix
 
-Commands not listed by the sealed 52-entry registry do not exist at runtime.
+Commands not listed by the sealed 60-entry registry do not exist at runtime. MCP discovery further intersects this registry with configured domain toolsets, the fixed principal/guild/mode policy decision, and independent read-only filtering before lexical registration.
 
 | Capability | Read operations | Mutation operations | Mandatory destructive classes |
 |---|---|---|---|
@@ -34,6 +34,8 @@ Commands not listed by the sealed 52-entry registry do not exist at runtime.
 | `application_command.manage` | — | `create_guild_application_command`, `modify_guild_application_command`, `delete_guild_application_command`, `bulk_overwrite_guild_application_commands` | `delete` or `bulk_overwrite` |
 | `scheduled_event.read` | `list_scheduled_events`, `get_scheduled_event`, `list_scheduled_event_users` | — | — |
 | `scheduled_event.manage` | — | `create_scheduled_event`, `modify_scheduled_event`, `delete_scheduled_event` | `delete` |
+| `auto_moderation.read` | `list_auto_moderation_rules`, `get_auto_moderation_rule` | — | — |
+| `auto_moderation.manage` | — | `create_auto_moderation_rule`, `modify_auto_moderation_rule`, `delete_auto_moderation_rule` | `delete` |
 
 `lockdown` remains a reserved approval-required workflow class; there is no raw `LockdownGuild` request escape hatch. Any role request carrying permissions is conservatively `role_escalation`; requesting Discord `ADMINISTRATOR` is never implicit.
 

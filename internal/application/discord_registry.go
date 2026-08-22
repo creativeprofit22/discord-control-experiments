@@ -240,18 +240,30 @@ func destructiveForName(name string) domain.DestructiveClass {
 	return domain.DestructiveNone
 }
 
-func destructiveForCommand(command domain.Command, spec CommandSpec) domain.DestructiveClass {
+func DestructiveClassForCommand(command domain.Command, spec CommandSpec) domain.DestructiveClass {
 	switch typed := command.(type) {
 	case domain.CreateRole:
 		if typed.Permissions != nil {
+			return domain.DestructiveRoleEscalation
+		}
+	case *domain.CreateRole:
+		if typed != nil && typed.Permissions != nil {
 			return domain.DestructiveRoleEscalation
 		}
 	case domain.ModifyRole:
 		if typed.Permissions != nil {
 			return domain.DestructiveRoleEscalation
 		}
+	case *domain.ModifyRole:
+		if typed != nil && typed.Permissions != nil {
+			return domain.DestructiveRoleEscalation
+		}
 	case domain.ModifyMember:
 		if typed.Roles != nil {
+			return domain.DestructiveRoleEscalation
+		}
+	case *domain.ModifyMember:
+		if typed != nil && typed.Roles != nil {
 			return domain.DestructiveRoleEscalation
 		}
 	}

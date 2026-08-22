@@ -10,7 +10,7 @@ Discord bot tokens and webhook URLs, actor grants, approvals, audit integrity, g
 | Source | Validation and authority boundary | Permitted sink |
 |---|---|---|
 | CLI/config JSON | bounded UTF-8, duplicate/unknown-key rejection, strict enums, exact env allowlist, contained paths | composition settings and opaque secret handles |
-| local MCP/model | stdio process identity supplied by composition; filtered discovery; model fields never authorize | typed application invocation only |
+| local MCP/model | exact 2026-07-28 bounded stdio; fixed process principal/guild; policy/toolset/read-only discovery; closed schemas; model fields never authorize | `OperatorService` invocation only |
 | interactions/Gateway/jobs | future adapter authentication plus typed principal; no inherited MCP trust | same application chokepoint |
 | policy rules | exact principal→actor compilation; explicit guilds/capabilities/mode; no wildcard | pure typed decision only |
 | approval administration | authenticated human boundary, not a model tool; actor/hash/TTL binding | atomic in-memory consume port |
@@ -25,7 +25,7 @@ Discord bot tokens and webhook URLs, actor grants, approvals, audit integrity, g
 
 **Cross-guild substitution:** every command exposes typed resource references. Known conflicting owners and unknown unqualified owners deny before transport. Ownership records arise only from guild-scoped discovery/create responses.
 
-**Approval replay or fatigue:** mandatory destructive classes consume one random grant bound to actor and canonical operation hash. Expiry, mismatch, replay, restart, or storage error denies. Dry runs do not consume. No issuance tool exists; exact narrow workflows avoid wildcard or bundled approval.
+**Approval replay or fatigue:** mandatory destructive classes consume one random grant bound to actor and canonical operation hash. MCP form request state additionally binds canonical arguments, tool, actor, guild, plan, and a two-minute expiry and is consumed on every terminal attempt. Expiry, mismatch, replay, restart, or storage error denies. Dry runs do not consume. No issuance tool exists; exact narrow workflows avoid wildcard or bundled approval.
 
 **Secret disclosure:** config stores references/handles, Discord stores a use callback rather than plaintext, and each value is registered before request construction. Telemetry/audit schemas avoid content; dynamic redaction is defense in depth and emits interventions. Crash output is generic. Rotation uses separate environment credentials and restart verification.
 
@@ -39,6 +39,6 @@ Discord bot tokens and webhook URLs, actor grants, approvals, audit integrity, g
 
 ## Exposure limits
 
-Remote MCP, a human approval UI, tenant isolation beyond explicit guild/resource grants, an external immutable audit ledger, automatic retention deletion, live Discord permission probing, and raw lockdown APIs are not implemented. Remote MCP and approval issuance require separate authenticated adapters and threat-model review. The bot must not receive Discord `ADMINISTRATOR` by default.
+Remote MCP, Streamable HTTP, a remote human approval UI, tenant isolation beyond explicit guild/resource grants, an external immutable audit ledger, automatic retention deletion, live Discord permission probing, and raw lockdown APIs are not implemented. Remote MCP and remote approval issuance require separate authenticated adapters and threat-model review. The bot must not receive Discord `ADMINISTRATOR` by default.
 
 Report concerns through [SECURITY.md](../../SECURITY.md). Review [capability policy](../reference/capability-policy.md), [Discord permissions](../reference/discord-permissions.md), [approval model](../reference/approval-model.md), [audit retention](../reference/audit-retention.md), [secret rotation](../runbooks/secret-rotation.md), and [incident response](../runbooks/security-incident.md).

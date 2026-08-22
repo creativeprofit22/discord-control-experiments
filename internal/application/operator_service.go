@@ -83,21 +83,7 @@ func (s *OperatorService) HandlerCatalog() []string {
 // guild scope before strict CLI JSON decoding. No caller-controlled route/method
 // reaches the transport.
 func NewOperatorDiscordCommand(name string, guildID domain.GuildID) (domain.Command, error) {
-	typeOf, ok := operatorCommandTypes[name]
-	if !ok {
-		return nil, &domain.AuthorizationError{Reason: domain.PolicyUnknownCommand}
-	}
-	value := reflect.New(typeOf)
-	contextField := value.Elem().FieldByName("CommandContext")
-	if !contextField.IsValid() || !contextField.CanSet() {
-		return nil, &domain.InvariantError{Detail: "command context unavailable"}
-	}
-	contextField.Set(reflect.ValueOf(domain.CommandContext{GuildID: guildID}))
-	command, ok := value.Interface().(domain.Command)
-	if !ok {
-		return nil, &domain.InvariantError{Detail: "sealed command type invalid"}
-	}
-	return command, nil
+	return NewContractCommand(name, guildID)
 }
 
 func BindOperatorCommand(command domain.Command, guildID domain.GuildID, values map[string]string) error {
@@ -135,7 +121,11 @@ func BindOperatorCommand(command domain.Command, guildID domain.GuildID, values 
 }
 
 func BindOperatorInvocation(command domain.Command, correlationID domain.CorrelationID) error {
-	if command == nil || correlationID == "" {
+	return BindOperatorInvocationFor(command, correlationID, "cli")
+}
+
+func BindOperatorInvocationFor(command domain.Command, correlationID domain.CorrelationID, adapter string) error {
+	if command == nil || correlationID == "" || adapter == "" {
 		return &domain.InvariantError{Detail: "operator correlation is invalid"}
 	}
 	value := reflect.ValueOf(command)
@@ -148,10 +138,10 @@ func BindOperatorInvocation(command domain.Command, correlationID domain.Correla
 	}
 	current := field.Interface().(domain.CommandContext)
 	if current.IdempotencyKey == "" {
-		current.IdempotencyKey = domain.IdempotencyKey("cli-" + string(correlationID))
+		current.IdempotencyKey = domain.IdempotencyKey(adapter + "-" + string(correlationID))
 	}
 	if current.ReconciliationKey == "" {
-		current.ReconciliationKey = domain.ReconciliationKey("cli-" + string(correlationID))
+		current.ReconciliationKey = domain.ReconciliationKey(adapter + "-" + string(correlationID))
 	}
 	field.Set(reflect.ValueOf(current))
 	return nil

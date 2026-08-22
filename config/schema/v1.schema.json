@@ -35,7 +35,19 @@
         }
       }
     },
-    "mcp": { "type": "object", "additionalProperties": false, "required": ["enabled"], "properties": { "enabled": { "type": "boolean" } } },
+    "mcp": {
+      "type": "object", "additionalProperties": false, "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "guildId": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "toolsets": { "type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": { "enum": ["build", "moderation", "news", "diagnostic"] } },
+        "readOnly": { "type": "boolean" },
+        "maxMessageBytes": { "type": "integer", "minimum": 4096, "maximum": 8388608 },
+        "maxConcurrentCalls": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "callTimeout": { "type": "string", "minLength": 2, "maxLength": 16 }
+      }
+    },
     "observability": {
       "type": "object", "additionalProperties": false, "required": ["exporter"],
       "properties": { "exporter": { "enum": ["none", "stderr", "otlp-http"] }, "endpoint": { "type": "string", "minLength": 1 } }
@@ -51,7 +63,7 @@
             "id": { "type": "string", "minLength": 1, "maxLength": 128 },
             "principals": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/$defs/principal" } },
             "guilds": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" } },
-            "capabilities": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "enum": ["guild.inspect", "channel.read", "channel.manage", "role.read", "role.manage", "member.read", "member.moderate", "message.read", "message.manage", "webhook.read", "webhook.manage", "invite.read", "invite.manage", "application_command.read", "application_command.manage", "onboarding.read", "onboarding.manage", "scheduled_event.read", "scheduled_event.manage"] } },
+            "capabilities": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "enum": ["guild.inspect", "channel.read", "channel.manage", "role.read", "role.manage", "member.read", "member.moderate", "message.read", "message.manage", "webhook.read", "webhook.manage", "invite.read", "invite.manage", "application_command.read", "application_command.manage", "onboarding.read", "onboarding.manage", "scheduled_event.read", "scheduled_event.manage", "auto_moderation.read", "auto_moderation.manage"] } },
             "mode": { "$ref": "#/$defs/mode" },
             "preapprovedOperations": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^*]+$" } }
           }

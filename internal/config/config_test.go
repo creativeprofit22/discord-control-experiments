@@ -12,7 +12,7 @@ import (
 
 const (
 	canary = "canary-secret-token-4d29"
-	valid  = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":true},"observability":{"exporter":"none"}}`
+	valid  = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":true,"guildId":"123456789012345678"},"observability":{"exporter":"none"}}`
 )
 
 type resolver map[string]string
@@ -112,7 +112,7 @@ func TestPolicyConfigDefaultsAndStrictValidation(t *testing.T) {
 	if resolved.Policy.Mode != "read_only" || len(resolved.Policy.Actors) != 0 || resolved.Audit.Path == "" {
 		t.Fatalf("defaults = %#v", resolved)
 	}
-	explicit := `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"},"webhooks":[{"name":"alerts","url":{"source":"env","name":"DISCORD_ALERT_WEBHOOK"}}]},"mcp":{"enabled":true},"observability":{"exporter":"none"},"secretEnvironmentAllowlist":["DISCORD_ALERT_WEBHOOK"],"policy":{"mode":"apply","actors":[{"id":"operator","principals":[{"adapter":"mcp","subject":"local-user","authenticationMethod":"os-process"}],"guilds":["123"],"capabilities":["channel.read"],"mode":"read_only"}]},"approvals":{"maxTtl":"10m"},"audit":{"path":"audit/events.jsonl","retentionDays":30,"maxBytes":1048576},"securityAlerts":{"denialThreshold":5,"denialWindow":"1m","destructiveThreshold":2,"destructiveWindow":"1m"}}`
+	explicit := `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"},"webhooks":[{"name":"alerts","url":{"source":"env","name":"DISCORD_ALERT_WEBHOOK"}}]},"mcp":{"enabled":true,"guildId":"123456789012345678"},"observability":{"exporter":"none"},"secretEnvironmentAllowlist":["DISCORD_ALERT_WEBHOOK"],"policy":{"mode":"apply","actors":[{"id":"operator","principals":[{"adapter":"mcp","subject":"local-user","authenticationMethod":"os-process"}],"guilds":["123"],"capabilities":["channel.read"],"mode":"read_only"}]},"approvals":{"maxTtl":"10m"},"audit":{"path":"audit/events.jsonl","retentionDays":30,"maxBytes":1048576},"securityAlerts":{"denialThreshold":5,"denialWindow":"1m","destructiveThreshold":2,"destructiveWindow":"1m"}}`
 	if _, err := Load(strings.NewReader(explicit), resolver{"DISCORD_BOT_TOKEN": canary, "DISCORD_ALERT_WEBHOOK": "https://discord.com/api/webhooks/canary"}); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,10 @@ func TestLoadRejectsInvalidInputWithoutCanary(t *testing.T) {
 		{"unallowlisted env", []byte(strings.Replace(valid, "DISCORD_BOT_TOKEN", "OTHER_SECRET", 1)), resolver{"OTHER_SECRET": canary}},
 		{"missing env", []byte(valid), resolver{}},
 		{"empty env", []byte(valid), resolver{"DISCORD_BOT_TOKEN": ""}},
-		{"missing enabled", []byte(strings.Replace(valid, `"mcp":{"enabled":true}`, `"mcp":{}`, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},
+		{"missing enabled", []byte(strings.Replace(valid, `"enabled":true,`, ``, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},
+		{"enabled without guild", []byte(strings.Replace(valid, `,"guildId":"123456789012345678"`, ``, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},
+		{"unknown toolset", []byte(strings.Replace(valid, `"guildId":"123456789012345678"`, `"guildId":"123456789012345678","toolsets":["raw"]`, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},
+		{"invalid message bound", []byte(strings.Replace(valid, `"guildId":"123456789012345678"`, `"guildId":"123456789012345678","maxMessageBytes":1024`, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},
 		{"invalid exporter", []byte(strings.Replace(valid, `"exporter":"none"`, `"exporter":"socket"`, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},
 		{"endpoint on none", []byte(strings.Replace(valid, `"exporter":"none"`, `"exporter":"none","endpoint":"https://localhost"`, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},
 		{"insecure OTLP", []byte(strings.Replace(valid, `"exporter":"none"`, `"exporter":"otlp-http","endpoint":"http://localhost"`, 1)), resolver{"DISCORD_BOT_TOKEN": canary}},

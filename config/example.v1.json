@@ -7,14 +7,35 @@
     }
   },
   "mcp": {
-    "enabled": true
+    "enabled": true,
+    "guildId": "123456789012345678",
+    "mode": "read_only",
+    "toolsets": ["diagnostic"],
+    "readOnly": true,
+    "maxMessageBytes": 1048576,
+    "maxConcurrentCalls": 4,
+    "callTimeout": "30s"
   },
   "observability": {
     "exporter": "none"
   },
   "policy": {
     "mode": "read_only",
-    "actors": []
+    "actors": [
+      {
+        "id": "mcp-reader",
+        "principals": [
+          {
+            "adapter": "mcp",
+            "subject": "local-stdio",
+            "authenticationMethod": "os-process"
+          }
+        ],
+        "guilds": ["123456789012345678"],
+        "capabilities": ["guild.inspect", "channel.read", "role.read"],
+        "mode": "read_only"
+      }
+    ]
   },
   "approvals": {
     "maxTtl": "15m"
