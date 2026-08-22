@@ -1,0 +1,3 @@
+Usage: discord-control channel set-permission --guild VALUE --channel VALUE --input VALUE
+
+set_channel_permission

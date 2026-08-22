@@ -1,0 +1,3 @@
+Usage: discord-control role delete --guild VALUE --role VALUE
+
+delete_role

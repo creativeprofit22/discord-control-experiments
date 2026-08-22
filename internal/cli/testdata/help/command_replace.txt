@@ -1,0 +1,3 @@
+Usage: discord-control command replace --guild VALUE --application VALUE --input VALUE
+
+bulk_overwrite_guild_application_commands

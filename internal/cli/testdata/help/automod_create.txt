@@ -1,0 +1,3 @@
+Usage: discord-control automod create --guild VALUE --input VALUE
+
+create_auto_moderation_rule

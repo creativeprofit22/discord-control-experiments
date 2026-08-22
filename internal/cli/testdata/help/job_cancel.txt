@@ -1,0 +1,3 @@
+Usage: discord-control job cancel --run VALUE
+
+Persist cooperative job cancellation

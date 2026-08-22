@@ -1,0 +1,3 @@
+Usage: discord-control health local
+
+Check local configuration and state without egress

@@ -1,0 +1,3 @@
+Usage: discord-control job list [--guild VALUE]
+
+List durable workflow jobs

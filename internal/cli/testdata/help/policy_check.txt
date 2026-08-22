@@ -1,0 +1,3 @@
+Usage: discord-control policy check --guild VALUE --capability VALUE --mode VALUE
+
+Check an effective capability decision

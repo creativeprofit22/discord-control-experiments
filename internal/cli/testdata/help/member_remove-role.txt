@@ -1,0 +1,3 @@
+Usage: discord-control member remove-role --guild VALUE --role VALUE --user VALUE
+
+remove_member_role

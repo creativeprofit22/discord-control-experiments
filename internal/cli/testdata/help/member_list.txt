@@ -1,0 +1,3 @@
+Usage: discord-control member list --guild VALUE
+
+list_members

@@ -1,0 +1,3 @@
+Usage: discord-control automod delete --guild VALUE --rule VALUE
+
+delete_auto_moderation_rule

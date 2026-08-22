@@ -1,0 +1,3 @@
+Usage: discord-control command create --guild VALUE --application VALUE --input VALUE
+
+create_guild_application_command

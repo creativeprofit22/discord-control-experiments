@@ -1,0 +1,3 @@
+Usage: discord-control channel reorder --guild VALUE --input VALUE
+
+reorder_channels

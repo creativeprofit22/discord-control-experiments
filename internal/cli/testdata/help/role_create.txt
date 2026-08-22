@@ -1,0 +1,3 @@
+Usage: discord-control role create --guild VALUE --input VALUE
+
+create_role

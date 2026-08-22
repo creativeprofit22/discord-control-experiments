@@ -1,0 +1,3 @@
+Usage: discord-control channel delete --guild VALUE --channel VALUE
+
+delete_channel

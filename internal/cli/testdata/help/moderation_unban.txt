@@ -1,0 +1,3 @@
+Usage: discord-control moderation unban --guild VALUE --user VALUE
+
+delete_member_ban

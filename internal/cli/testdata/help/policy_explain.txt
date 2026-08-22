@@ -1,0 +1,3 @@
+Usage: discord-control policy explain --guild VALUE --capability VALUE --mode VALUE
+
+Explain a sanitized policy decision

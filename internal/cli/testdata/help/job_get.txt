@@ -1,0 +1,3 @@
+Usage: discord-control job get --run VALUE
+
+Get bounded workflow job metadata

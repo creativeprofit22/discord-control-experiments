@@ -1,0 +1,3 @@
+Usage: discord-control channel delete-permission --guild VALUE --channel VALUE --overwrite VALUE
+
+delete_channel_permission

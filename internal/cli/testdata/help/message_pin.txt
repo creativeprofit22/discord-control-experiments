@@ -1,0 +1,3 @@
+Usage: discord-control message pin --guild VALUE --channel VALUE --message VALUE
+
+pin_message

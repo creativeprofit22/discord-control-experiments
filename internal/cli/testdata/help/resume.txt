@@ -1,0 +1,3 @@
+Usage: discord-control resume --run VALUE --plan-hash VALUE [--approval-id VALUE] [--allow-delete VALUE]
+
+Resume an interrupted reconciliation run

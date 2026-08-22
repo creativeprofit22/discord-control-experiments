@@ -1,0 +1,3 @@
+Usage: discord-control health discord --guild VALUE
+
+Run a bounded read-only Discord check

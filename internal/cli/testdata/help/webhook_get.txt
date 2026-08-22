@@ -1,0 +1,3 @@
+Usage: discord-control webhook get --guild VALUE --webhook VALUE
+
+get_webhook

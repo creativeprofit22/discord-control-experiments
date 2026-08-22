@@ -1,0 +1,3 @@
+Usage: discord-control message delete --guild VALUE --channel VALUE --message VALUE
+
+delete_message

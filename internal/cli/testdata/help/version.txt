@@ -1,0 +1,3 @@
+Usage: discord-control version
+
+Print build and CLI API version

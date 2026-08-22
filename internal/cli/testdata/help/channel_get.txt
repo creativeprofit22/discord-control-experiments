@@ -1,0 +1,3 @@
+Usage: discord-control channel get --guild VALUE --channel VALUE
+
+get_channel

@@ -1,0 +1,3 @@
+Usage: discord-control member update --guild VALUE --user VALUE --input VALUE
+
+modify_member

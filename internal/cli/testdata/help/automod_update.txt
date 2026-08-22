@@ -1,0 +1,3 @@
+Usage: discord-control automod update --guild VALUE --rule VALUE --input VALUE
+
+modify_auto_moderation_rule

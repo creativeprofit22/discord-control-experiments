@@ -1,0 +1,3 @@
+Usage: discord-control role update --guild VALUE --role VALUE --input VALUE
+
+modify_role

@@ -1,0 +1,3 @@
+Usage: discord-control webhook update --guild VALUE --webhook VALUE --input VALUE
+
+modify_webhook

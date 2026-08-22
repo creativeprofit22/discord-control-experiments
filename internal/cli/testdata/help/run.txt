@@ -1,0 +1,3 @@
+Usage: discord-control run
+
+Run the MCP stdio service

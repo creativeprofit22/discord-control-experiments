@@ -1,0 +1,3 @@
+Usage: discord-control command list --guild VALUE --application VALUE
+
+list_guild_application_commands

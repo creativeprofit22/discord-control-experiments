@@ -1,0 +1,3 @@
+Usage: discord-control snapshot --guild VALUE --application VALUE --output VALUE
+
+Capture a declarative guild snapshot

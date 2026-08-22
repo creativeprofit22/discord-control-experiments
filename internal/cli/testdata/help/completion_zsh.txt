@@ -1,0 +1,3 @@
+Usage: discord-control completion zsh
+
+Generate zsh completion

@@ -1,0 +1,3 @@
+Usage: discord-control moderation kick --guild VALUE --user VALUE
+
+remove_member

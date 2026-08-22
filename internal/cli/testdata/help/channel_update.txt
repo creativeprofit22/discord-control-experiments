@@ -1,0 +1,3 @@
+Usage: discord-control channel update --guild VALUE --channel VALUE --input VALUE
+
+modify_channel

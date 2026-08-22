@@ -1,0 +1,3 @@
+Usage: discord-control policy catalog --guild VALUE --mode VALUE
+
+List effective command capabilities

@@ -1,0 +1,3 @@
+Usage: discord-control completion fish
+
+Generate fish completion

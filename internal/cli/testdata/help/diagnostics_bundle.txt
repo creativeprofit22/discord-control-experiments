@@ -1,0 +1,3 @@
+Usage: discord-control diagnostics bundle --output VALUE
+
+Write a bounded sanitized diagnostic bundle

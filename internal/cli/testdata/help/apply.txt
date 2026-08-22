@@ -1,0 +1,3 @@
+Usage: discord-control apply --plan VALUE --plan-hash VALUE [--approval-id VALUE] [--allow-delete VALUE]
+
+Apply an approved immutable plan

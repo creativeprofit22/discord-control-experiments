@@ -1,0 +1,79 @@
+discord-control — deterministic Discord operator CLI
+
+Commands:
+  apply                          Apply an approved immutable plan
+  automod create                 create_auto_moderation_rule
+  automod delete                 delete_auto_moderation_rule
+  automod get                    get_auto_moderation_rule
+  automod list                   list_auto_moderation_rules
+  automod update                 modify_auto_moderation_rule
+  channel create                 create_channel
+  channel delete                 delete_channel
+  channel delete-permission      delete_channel_permission
+  channel get                    get_channel
+  channel list                   list_guild_channels
+  channel reorder                reorder_channels
+  channel set-permission         set_channel_permission
+  channel update                 modify_channel
+  command create                 create_guild_application_command
+  command delete                 delete_guild_application_command
+  command get                    get_guild_application_command
+  command list                   list_guild_application_commands
+  command replace                bulk_overwrite_guild_application_commands
+  command update                 modify_guild_application_command
+  completion bash                Generate bash completion
+  completion fish                Generate fish completion
+  completion powershell          Generate powershell completion
+  completion zsh                 Generate zsh completion
+  diagnostics bundle             Write a bounded sanitized diagnostic bundle
+  drift                          Compare current state with a saved plan
+  health discord                 Run a bounded read-only Discord check
+  health local                   Check local configuration and state without egress
+  help                           Show deterministic command help
+  inspect                        Inspect a guild
+  job cancel                     Persist cooperative job cancellation
+  job get                        Get bounded workflow job metadata
+  job list                       List durable workflow jobs
+  job resume                     Resume a recoverable durable job
+  member add-role                add_member_role
+  member get                     get_member
+  member list                    list_members
+  member remove-role             remove_member_role
+  member update                  modify_member
+  message bulk-delete            bulk_delete_messages
+  message create                 create_message
+  message delete                 delete_message
+  message get                    get_message
+  message list                   list_messages
+  message pin                    pin_message
+  message unpin                  unpin_message
+  message update                 modify_message
+  moderation ban                 create_member_ban
+  moderation kick                remove_member
+  moderation unban               delete_member_ban
+  plan                           Build an immutable reconciliation plan
+  policy catalog                 List effective command capabilities
+  policy check                   Check an effective capability decision
+  policy explain                 Explain a sanitized policy decision
+  resume                         Resume an interrupted reconciliation run
+  role create                    create_role
+  role delete                    delete_role
+  role list                      list_guild_roles
+  role reorder                   reorder_roles
+  role update                    modify_role
+  run                            Run the MCP stdio service
+  snapshot                       Capture a declarative guild snapshot
+  version                        Print build and CLI API version
+  webhook create                 create_webhook
+  webhook delete                 delete_webhook
+  webhook get                    get_webhook
+  webhook list-channel           list_channel_webhooks
+  webhook list-guild             list_guild_webhooks
+  webhook update                 modify_webhook
+
+Global flags:
+  --api-version
+  --config
+  --format
+  --non-interactive
+  --timeout

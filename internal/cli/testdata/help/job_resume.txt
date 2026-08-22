@@ -1,0 +1,3 @@
+Usage: discord-control job resume --run VALUE --plan-hash VALUE [--approval-id VALUE]
+
+Resume a recoverable durable job

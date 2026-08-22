@@ -1,0 +1,1199 @@
+{
+  "$defs": {
+    "base": {
+      "properties": {
+        "apiVersion": {
+          "const": "discord-control.cli/v1"
+        },
+        "correlationId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "kind",
+        "correlationId"
+      ],
+      "type": "object"
+    },
+    "commandInputs": {
+      "properties": {
+        "apply": {
+          "additionalProperties": false,
+          "properties": {
+            "allow-delete": {
+              "type": "boolean"
+            },
+            "approval-id": {
+              "type": "string"
+            },
+            "plan": {
+              "type": "string"
+            },
+            "plan-hash": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "plan",
+            "plan-hash"
+          ],
+          "type": "object"
+        },
+        "automod create": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "automod delete": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "rule": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "rule"
+          ],
+          "type": "object"
+        },
+        "automod get": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "rule": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "rule"
+          ],
+          "type": "object"
+        },
+        "automod list": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "automod update": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "rule": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "rule",
+            "input"
+          ],
+          "type": "object"
+        },
+        "channel create": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "channel delete": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel"
+          ],
+          "type": "object"
+        },
+        "channel delete-permission": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "overwrite": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "overwrite"
+          ],
+          "type": "object"
+        },
+        "channel get": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel"
+          ],
+          "type": "object"
+        },
+        "channel list": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "channel reorder": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "channel set-permission": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "input"
+          ],
+          "type": "object"
+        },
+        "channel update": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "input"
+          ],
+          "type": "object"
+        },
+        "command create": {
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "application",
+            "input"
+          ],
+          "type": "object"
+        },
+        "command delete": {
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "application",
+            "command"
+          ],
+          "type": "object"
+        },
+        "command get": {
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "application",
+            "command"
+          ],
+          "type": "object"
+        },
+        "command list": {
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "application"
+          ],
+          "type": "object"
+        },
+        "command replace": {
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "application",
+            "input"
+          ],
+          "type": "object"
+        },
+        "command update": {
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "application",
+            "command",
+            "input"
+          ],
+          "type": "object"
+        },
+        "completion bash": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "completion fish": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "completion powershell": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "completion zsh": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "diagnostics bundle": {
+          "additionalProperties": false,
+          "properties": {
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "output"
+          ],
+          "type": "object"
+        },
+        "drift": {
+          "additionalProperties": false,
+          "properties": {
+            "plan": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "plan"
+          ],
+          "type": "object"
+        },
+        "health discord": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "health local": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "help": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "inspect": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "job cancel": {
+          "additionalProperties": false,
+          "properties": {
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run"
+          ],
+          "type": "object"
+        },
+        "job get": {
+          "additionalProperties": false,
+          "properties": {
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run"
+          ],
+          "type": "object"
+        },
+        "job list": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        },
+        "job resume": {
+          "additionalProperties": false,
+          "properties": {
+            "approval-id": {
+              "type": "string"
+            },
+            "plan-hash": {
+              "type": "string"
+            },
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run",
+            "plan-hash"
+          ],
+          "type": "object"
+        },
+        "member add-role": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "role",
+            "user"
+          ],
+          "type": "object"
+        },
+        "member get": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "user"
+          ],
+          "type": "object"
+        },
+        "member list": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "member remove-role": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "role",
+            "user"
+          ],
+          "type": "object"
+        },
+        "member update": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "user",
+            "input"
+          ],
+          "type": "object"
+        },
+        "message bulk-delete": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "input"
+          ],
+          "type": "object"
+        },
+        "message create": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "input"
+          ],
+          "type": "object"
+        },
+        "message delete": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "message"
+          ],
+          "type": "object"
+        },
+        "message get": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "message"
+          ],
+          "type": "object"
+        },
+        "message list": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel"
+          ],
+          "type": "object"
+        },
+        "message pin": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "message"
+          ],
+          "type": "object"
+        },
+        "message unpin": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "message"
+          ],
+          "type": "object"
+        },
+        "message update": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "message",
+            "input"
+          ],
+          "type": "object"
+        },
+        "moderation ban": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "user",
+            "input"
+          ],
+          "type": "object"
+        },
+        "moderation kick": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "user"
+          ],
+          "type": "object"
+        },
+        "moderation unban": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "user"
+          ],
+          "type": "object"
+        },
+        "plan": {
+          "additionalProperties": false,
+          "properties": {
+            "desired": {
+              "type": "string"
+            },
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "desired",
+            "output"
+          ],
+          "type": "object"
+        },
+        "policy catalog": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "mode"
+          ],
+          "type": "object"
+        },
+        "policy check": {
+          "additionalProperties": false,
+          "properties": {
+            "capability": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "capability",
+            "mode"
+          ],
+          "type": "object"
+        },
+        "policy explain": {
+          "additionalProperties": false,
+          "properties": {
+            "capability": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "capability",
+            "mode"
+          ],
+          "type": "object"
+        },
+        "resume": {
+          "additionalProperties": false,
+          "properties": {
+            "allow-delete": {
+              "type": "boolean"
+            },
+            "approval-id": {
+              "type": "string"
+            },
+            "plan-hash": {
+              "type": "string"
+            },
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run",
+            "plan-hash"
+          ],
+          "type": "object"
+        },
+        "role create": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "role delete": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "role"
+          ],
+          "type": "object"
+        },
+        "role list": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "role reorder": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "role update": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "role",
+            "input"
+          ],
+          "type": "object"
+        },
+        "run": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "snapshot": {
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "application",
+            "output"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "webhook create": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel",
+            "input"
+          ],
+          "type": "object"
+        },
+        "webhook delete": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "webhook": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "webhook"
+          ],
+          "type": "object"
+        },
+        "webhook get": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "webhook": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "webhook"
+          ],
+          "type": "object"
+        },
+        "webhook list-channel": {
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "channel"
+          ],
+          "type": "object"
+        },
+        "webhook list-guild": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "webhook update": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "webhook": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "webhook",
+            "input"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "failure": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "properties": {
+            "error": {
+              "properties": {
+                "code": {
+                  "enum": [
+                    "input_invalid",
+                    "policy_denied",
+                    "approval_required",
+                    "discord_failed",
+                    "reconciliation_conflict",
+                    "timeout",
+                    "interrupted",
+                    "internal"
+                  ]
+                },
+                "message": {
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "success": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base"
+        },
+        {
+          "properties": {
+            "result": {}
+          },
+          "required": [
+            "result"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$id": "https://discord-control.local/schema/cli/v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/success"
+    },
+    {
+      "$ref": "#/$defs/failure"
+    }
+  ],
+  "title": "discord-control CLI v1"
+}

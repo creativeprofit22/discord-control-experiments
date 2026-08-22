@@ -1,0 +1,3 @@
+Usage: discord-control drift --plan VALUE
+
+Compare current state with a saved plan

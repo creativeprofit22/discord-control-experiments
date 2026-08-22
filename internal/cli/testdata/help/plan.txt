@@ -1,0 +1,3 @@
+Usage: discord-control plan --desired VALUE --output VALUE
+
+Build an immutable reconciliation plan

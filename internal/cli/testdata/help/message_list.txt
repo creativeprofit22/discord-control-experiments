@@ -1,0 +1,3 @@
+Usage: discord-control message list --guild VALUE --channel VALUE
+
+list_messages

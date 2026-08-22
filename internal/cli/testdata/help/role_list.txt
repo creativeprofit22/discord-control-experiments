@@ -1,0 +1,3 @@
+Usage: discord-control role list --guild VALUE
+
+list_guild_roles

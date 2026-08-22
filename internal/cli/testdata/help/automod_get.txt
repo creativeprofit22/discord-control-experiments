@@ -1,0 +1,3 @@
+Usage: discord-control automod get --guild VALUE --rule VALUE
+
+get_auto_moderation_rule

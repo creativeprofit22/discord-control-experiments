@@ -1,0 +1,3 @@
+Usage: discord-control role reorder --guild VALUE --input VALUE
+
+reorder_roles

@@ -1,0 +1,3 @@
+Usage: discord-control webhook delete --guild VALUE --webhook VALUE
+
+delete_webhook

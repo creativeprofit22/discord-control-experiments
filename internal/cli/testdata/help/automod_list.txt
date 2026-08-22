@@ -1,0 +1,3 @@
+Usage: discord-control automod list --guild VALUE
+
+list_auto_moderation_rules

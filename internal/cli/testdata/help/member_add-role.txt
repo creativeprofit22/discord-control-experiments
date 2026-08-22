@@ -1,0 +1,3 @@
+Usage: discord-control member add-role --guild VALUE --role VALUE --user VALUE
+
+add_member_role

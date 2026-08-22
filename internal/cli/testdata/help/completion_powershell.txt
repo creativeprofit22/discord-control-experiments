@@ -1,0 +1,3 @@
+Usage: discord-control completion powershell
+
+Generate powershell completion

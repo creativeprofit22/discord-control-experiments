@@ -1,0 +1,3 @@
+Usage: discord-control inspect --guild VALUE
+
+Inspect a guild

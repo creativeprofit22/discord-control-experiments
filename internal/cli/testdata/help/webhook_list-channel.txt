@@ -1,0 +1,3 @@
+Usage: discord-control webhook list-channel --guild VALUE --channel VALUE
+
+list_channel_webhooks
