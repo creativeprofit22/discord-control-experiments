@@ -13,13 +13,24 @@ type App struct {
 	telemetry  Telemetry
 	clock      Clock
 	correlate  func() (domain.CorrelationID, error)
+	discord    *DiscordService
 }
 
-func New(discord DiscordTransport, mcp MCPTransport, telemetry Telemetry, clock Clock, correlate func() (domain.CorrelationID, error)) (*App, error) {
+func New(discord DiscordTransport, mcp MCPTransport, telemetry Telemetry, clock Clock, correlate func() (domain.CorrelationID, error), discordService ...*DiscordService) (*App, error) {
 	if discord == nil || mcp == nil || telemetry == nil || clock == nil || correlate == nil {
 		return nil, errors.New("application dependencies are required")
 	}
-	return &App{transports: []Lifecycle{discord, mcp}, telemetry: telemetry, clock: clock, correlate: correlate}, nil
+	var service *DiscordService
+	if len(discordService) > 1 {
+		return nil, errors.New("at most one Discord service is allowed")
+	}
+	if len(discordService) == 1 {
+		if discordService[0] == nil {
+			return nil, errors.New("discord service is required when supplied")
+		}
+		service = discordService[0]
+	}
+	return &App{transports: []Lifecycle{discord, mcp}, telemetry: telemetry, clock: clock, correlate: correlate, discord: service}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
