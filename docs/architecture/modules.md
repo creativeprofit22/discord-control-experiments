@@ -5,19 +5,22 @@ Last reviewed: 2026-08-21
 
 | Package | Owns | Must not own |
 |---|---|---|
-| `domain` | identifiers, operations, decisions, results | adapters, configuration, telemetry |
-| `application` | lifecycle and narrow ports | Discord SDK details |
-| `discord` | DiscordGo client and bounded HTTP settings | policy or arbitrary raw-request export |
-| `policy` | fail-closed decisions | transport calls |
-| `reconcile` | desired/current comparison | transport calls |
-| `cli` | strict argv parsing and error returns | process exit |
+| `domain` | sealed Discord commands/results, declarative/snapshot/plan/apply contracts, typed identifiers | adapters, configuration, telemetry, SDK types |
+| `application` | lifecycle, secured Discord service, validation, ownership, idempotency, snapshot/plan/drift/apply/resume orchestration, narrow ports | HTTP, Discord SDK details, arbitrary requests |
+| `discord` | fixed-origin API-v10 HTTP, routes/codecs, multipart, errors, retries, dynamic rate limits | policy, idempotency, guild ownership, arbitrary raw-request export |
+| `policy` | exact principal mapping and pure fail-closed decisions | transport calls, approval storage |
+| `approval` | bounded random single-use in-memory grants | adapter/tool exposure, policy decisions |
+| `audit` | contained append-only synchronized hash-chained JSONL | update/delete APIs, command content |
+| `reconcile` | strict schema/migration, canonical hashes, snapshots, matching, diff, DAG, risk, deterministic rendering | network, clock, filesystem, policy, telemetry |
+| `state` | contained atomic bindings/saved plans, synced hash-chained apply journals, exclusive guild locks | tokens, Discord calls, policy decisions |
+| `cli` | strict argv parsing and typed command values | shell execution, process exit, Discord calls |
 | `mcp` | stdio, discovery, bounded tools, trace metadata validation | remote identity or arbitrary requests |
 | `interactions` | typed interaction dispatch | Gateway consumption |
 | `gateway` | Gateway event consumption | webhook substitution |
 | `jobs` | context cancellation and concurrency bounds | unbounded goroutines |
 | `config` | strict v1 parsing and secret references | Discord behavior |
-| `observability` | redacted logs, traces, metrics, correlation | authorization decisions |
+| `observability` | dynamic redaction, logs/traces/metrics, security alerts, correlation | authorization decisions |
 | `buildinfo` | deterministic build/runtime dependency facts | wall-clock build time |
 | `testsupport` | deterministic fakes/exporters | production composition |
 
-See [architecture direction](index.md) and [configuration contract](../reference/configuration.md).
+See [architecture direction](index.md), [Discord REST core](../reference/discord-rest-core.md), [capability policy](../reference/capability-policy.md), and [configuration contract](../reference/configuration.md).
