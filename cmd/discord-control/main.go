@@ -51,7 +51,7 @@ func run(args []string) error {
 	var redactor *observability.Redactor
 	err = resolved.DiscordToken.Use(func(token string) error {
 		redactor = observability.NewRedactor(token)
-		discordClient, err = discordadapter.New(token)
+		discordClient, err = discordadapter.New(discordadapter.TokenUse(resolved.DiscordToken.Use))
 		return err
 	})
 	if err != nil {

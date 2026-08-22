@@ -18,8 +18,3 @@ type Result struct {
 	Changed bool
 	Summary string
 }
-
-type PolicyDecision struct {
-	Allowed bool
-	Reason  string
-}

@@ -3,18 +3,42 @@
 Owner: Security and maintainers
 Last reviewed: 2026-08-21
 
-## Assets and trust boundaries
+## Assets and boundaries
 
-Discord credentials, policy decisions, MCP tool calls, interaction/Gateway payloads, config bytes, environment values, repository content, dependency code, and telemetry destinations cross trust boundaries. Credentials must not reach logs, traces, metrics, diagnostics, source, history, or CI artifacts.
+Discord bot tokens and webhook URLs, actor grants, approvals, audit integrity, guild state, user/message content, and telemetry are protected assets. Inputs from CLI/config, environment, repository files, MCP/model output, interactions, Gateway events, jobs, Discord responses, dependencies, and exporter destinations are untrusted until validated at their boundary.
 
-## Controls
+| Source | Validation and authority boundary | Permitted sink |
+|---|---|---|
+| CLI/config JSON | bounded UTF-8, duplicate/unknown-key rejection, strict enums, exact env allowlist, contained paths | composition settings and opaque secret handles |
+| local MCP/model | stdio process identity supplied by composition; filtered discovery; model fields never authorize | typed application invocation only |
+| interactions/Gateway/jobs | future adapter authentication plus typed principal; no inherited MCP trust | same application chokepoint |
+| policy rules | exact principal→actor compilation; explicit guilds/capabilities/mode; no wildcard | pure typed decision only |
+| approval administration | authenticated human boundary, not a model tool; actor/hash/TTL binding | atomic in-memory consume port |
+| audit | allowlisted minimized event, dynamic redaction, bounds, append/sync/hash chain | contained restrictive JSONL plus head |
+| environment secret | resolved and redactor-registered immediately before use | narrow Discord transport callback |
+| telemetry | low-cardinality allowlists and dynamic redaction | configured logger/trace/metric exporter |
+| Discord command | sealed registry, resource extraction/ownership, fixed route/codec | fixed TLS API-v10 origin only |
 
-Configuration is bounded and strict; environment names are allowlisted; secrets redact every standard representation. Policy defaults deny. Adapters expose no arbitrary Discord request escape hatch and cannot import each other. MCP stdout is protocol-only; trace context is bounded and format-validated but never authorizes. Jobs are cancellable and concurrency-bounded. OTLP requires explicit HTTPS and default startup has no network egress.
+## Threats and controls
 
-CI scans full history for secrets, reviews dependency changes, checks known Go vulnerabilities and static findings, validates licenses, emits an SBOM, and compares deterministic build hashes. These checks reduce specific risks; they do not establish absence of defects.
+**confused deputy and forged identity:** adapters provide evidence, not actor IDs or grants. Exact principal mapping, guild/capability checks, operator mode ceilings, and runtime authorization prevent command/model fields from elevating authority. Unknown, ambiguous, malformed, erroring, or panicking policy paths deny.
 
-## Out of scope now
+**Cross-guild substitution:** every command exposes typed resource references. Known conflicting owners and unknown unqualified owners deny before transport. Ownership records arise only from guild-scoped discovery/create responses.
 
-Remote MCP, tenant isolation, production deployment identity, user data retention, and live Discord permissions are not implemented. They require explicit threat-model updates before exposure.
+**Approval replay or fatigue:** mandatory destructive classes consume one random grant bound to actor and canonical operation hash. Expiry, mismatch, replay, restart, or storage error denies. Dry runs do not consume. No issuance tool exists; exact narrow workflows avoid wildcard or bundled approval.
 
-Report concerns through [SECURITY.md](../../SECURITY.md). Operate through the [operator guide](../operations/operator-guide.md).
+**Secret disclosure:** config stores references/handles, Discord stores a use callback rather than plaintext, and each value is registered before request construction. Telemetry/audit schemas avoid content; dynamic redaction is defense in depth and emits interventions. Crash output is generic. Rotation uses separate environment credentials and restart verification.
+
+**Audit fail-open/privacy:** a durable decision is required before Discord access. Completion failure after send alerts while preserving the pending precommit. Audit records omit command JSON, content, names, files, payloads, URLs, subjects, and secret values. Containment, restrictive permissions, record bounds, sequence, hash chain, and head verification detect many changes; they do not stop a privileged host operator deleting both files or provide non-repudiation.
+
+**Transport and supply chain:** there is no arbitrary request escape hatch. Discord uses a fixed HTTPS origin, bounded bodies, exact multipart, typed routes, retries, and dynamic rate limits. CI checks format, module integrity, static analysis, vulnerabilities, history/current-tree secrets, licenses, SBOM, and reproducible builds; these checks reduce specific risks but do not establish absence of defects.
+
+## Fail-closed sequence
+
+`dispatchDiscord` validates command/invocation/registry/resources, evaluates policy with panic recovery, hashes the operation, consumes approval for destructive apply, appends audit precommit, enforces mode, calls Discord only in apply, and appends completion for every result. Internal baseline and reconciliation inherit the authenticated principal and use linked child correlations through the same chokepoint. Policy, approval, or audit-precommit errors make zero Discord calls. Telemetry errors never grant or deny authority.
+
+## Exposure limits
+
+Remote MCP, a human approval UI, tenant isolation beyond explicit guild/resource grants, an external immutable audit ledger, automatic retention deletion, live Discord permission probing, and raw lockdown APIs are not implemented. Remote MCP and approval issuance require separate authenticated adapters and threat-model review. The bot must not receive Discord `ADMINISTRATOR` by default.
+
+Report concerns through [SECURITY.md](../../SECURITY.md). Review [capability policy](../reference/capability-policy.md), [Discord permissions](../reference/discord-permissions.md), [approval model](../reference/approval-model.md), [audit retention](../reference/audit-retention.md), [secret rotation](../runbooks/secret-rotation.md), and [incident response](../runbooks/security-incident.md).

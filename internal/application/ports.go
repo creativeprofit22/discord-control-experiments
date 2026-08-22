@@ -16,8 +16,35 @@ type Lifecycle interface {
 type DiscordTransport interface{ Lifecycle }
 type MCPTransport interface{ Lifecycle }
 
-type Policy interface {
-	Decide(context.Context, string) domain.PolicyDecision
+// DiscordPort is the only Discord capability boundary exposed to application code.
+// Implementations receive sealed commands, never caller-controlled methods or URLs.
+type DiscordPort interface {
+	ExecuteDiscord(context.Context, domain.Command) (DiscordPortResult, error)
+}
+
+type DiscordPortResult struct {
+	Value       any
+	Attempts    int
+	Sent        bool
+	Uncertain   bool
+	StatusClass string
+}
+
+type DiscordTelemetry interface {
+	ObserveDiscordCommand(context.Context, *DiscordObservation, func(context.Context) error) error
+}
+
+type DiscordObservation struct {
+	CommandName    string
+	RouteTemplate  string
+	Method         string
+	StatusClass    string
+	ResultClass    string
+	RetryReason    string
+	RateLimitScope string
+	Attempts       int
+	Replay         domain.ReplayState
+	Partial        *domain.PartialResult
 }
 
 type Reconciler interface {
@@ -25,6 +52,10 @@ type Reconciler interface {
 }
 
 type Clock interface{ Now() time.Time }
+
+type CorrelationIDGenerator interface {
+	NewCorrelationID() (domain.CorrelationID, error)
+}
 
 type Telemetry interface {
 	Observe(context.Context, domain.Operation, func(context.Context) error) error
