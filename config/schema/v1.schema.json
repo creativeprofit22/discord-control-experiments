@@ -5,38 +5,63 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "discord", "mcp", "observability"],
+  "$defs": {
+    "secretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "name"],
+      "properties": { "source": { "const": "env" }, "name": { "type": "string", "minLength": 1, "maxLength": 128 } }
+    },
+    "mode": { "enum": ["read_only", "dry_run", "apply"] },
+    "principal": {
+      "type": "object", "additionalProperties": false,
+      "required": ["adapter", "subject", "authenticationMethod"],
+      "properties": {
+        "adapter": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "subject": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "authenticationMethod": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    }
+  },
   "properties": {
     "version": { "const": 1 },
     "discord": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["token"],
+      "type": "object", "additionalProperties": false, "required": ["token"],
       "properties": {
-        "token": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["source", "name"],
-          "properties": {
-            "source": { "const": "env" },
-            "name": { "const": "DISCORD_BOT_TOKEN" }
-          }
+        "token": { "$ref": "#/$defs/secretReference" },
+        "webhooks": {
+          "type": "array", "maxItems": 32, "uniqueItems": true,
+          "items": { "type": "object", "additionalProperties": false, "required": ["name", "url"], "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 64 }, "url": { "$ref": "#/$defs/secretReference" } } }
         }
       }
     },
-    "mcp": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["enabled"],
-      "properties": { "enabled": { "type": "boolean" } }
-    },
+    "mcp": { "type": "object", "additionalProperties": false, "required": ["enabled"], "properties": { "enabled": { "type": "boolean" } } },
     "observability": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["exporter"],
+      "type": "object", "additionalProperties": false, "required": ["exporter"],
+      "properties": { "exporter": { "enum": ["none", "stderr", "otlp-http"] }, "endpoint": { "type": "string", "minLength": 1 } }
+    },
+    "policy": {
+      "type": "object", "additionalProperties": false, "required": ["mode", "actors"],
       "properties": {
-        "exporter": { "enum": ["none", "stderr", "otlp-http"] },
-        "endpoint": { "type": "string", "minLength": 1 }
+        "mode": { "$ref": "#/$defs/mode" },
+        "actors": { "type": "array", "maxItems": 64, "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "principals", "guilds", "capabilities", "mode"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "principals": { "type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": { "$ref": "#/$defs/principal" } },
+            "guilds": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" } },
+            "capabilities": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "enum": ["guild.inspect", "channel.read", "channel.manage", "role.read", "role.manage", "member.read", "member.moderate", "message.read", "message.manage", "webhook.read", "webhook.manage", "invite.read", "invite.manage", "application_command.read", "application_command.manage", "onboarding.read", "onboarding.manage", "scheduled_event.read", "scheduled_event.manage"] } },
+            "mode": { "$ref": "#/$defs/mode" },
+            "preapprovedOperations": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^*]+$" } }
+          }
+        } }
       }
-    }
+    },
+    "approvals": { "type": "object", "additionalProperties": false, "required": ["maxTtl"], "properties": { "maxTtl": { "type": "string", "minLength": 2, "maxLength": 16 } } },
+    "audit": { "type": "object", "additionalProperties": false, "required": ["path", "retentionDays", "maxBytes"], "properties": { "path": { "type": "string", "minLength": 1, "maxLength": 512 }, "retentionDays": { "type": "integer", "minimum": 1, "maximum": 3650 }, "maxBytes": { "type": "integer", "minimum": 65536, "maximum": 10737418240 } } },
+    "securityAlerts": { "type": "object", "additionalProperties": false, "required": ["denialThreshold", "denialWindow", "destructiveThreshold", "destructiveWindow"], "properties": { "denialThreshold": { "type": "integer", "minimum": 1, "maximum": 10000 }, "denialWindow": { "type": "string", "minLength": 2, "maxLength": 16 }, "destructiveThreshold": { "type": "integer", "minimum": 1, "maximum": 10000 }, "destructiveWindow": { "type": "string", "minLength": 2, "maxLength": 16 } } },
+    "reconciliation": { "type": "object", "additionalProperties": false, "required": ["stateDirectory", "maxOperations", "maxDestructiveOperations", "retentionDays"], "properties": { "stateDirectory": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?![\\/]|.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" }, "maxOperations": { "type": "integer", "minimum": 1, "maximum": 10000 }, "maxDestructiveOperations": { "type": "integer", "minimum": 0, "maximum": 10000 }, "retentionDays": { "type": "integer", "minimum": 1, "maximum": 3650 } } },
+    "secretEnvironmentAllowlist": { "type": "array", "maxItems": 64, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Z][A-Z0-9_]*$" } }
   }
 }

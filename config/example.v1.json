@@ -11,5 +11,23 @@
   },
   "observability": {
     "exporter": "none"
+  },
+  "policy": {
+    "mode": "read_only",
+    "actors": []
+  },
+  "approvals": {
+    "maxTtl": "15m"
+  },
+  "audit": {
+    "path": "audit/events.jsonl",
+    "retentionDays": 30,
+    "maxBytes": 67108864
+  },
+  "securityAlerts": {
+    "denialThreshold": 10,
+    "denialWindow": "5m",
+    "destructiveThreshold": 5,
+    "destructiveWindow": "5m"
   }
 }

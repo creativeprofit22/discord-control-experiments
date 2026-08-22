@@ -19,7 +19,13 @@ type SecretReference struct {
 }
 
 type Discord struct {
-	Token SecretReference `json:"token"`
+	Token    SecretReference `json:"token"`
+	Webhooks []WebhookSecret `json:"webhooks,omitempty"`
+}
+
+type WebhookSecret struct {
+	Name string          `json:"name"`
+	URL  SecretReference `json:"url"`
 }
 type MCP struct {
 	Enabled *bool `json:"enabled"`
@@ -28,19 +34,75 @@ type Observability struct {
 	Exporter string `json:"exporter"`
 	Endpoint string `json:"endpoint,omitempty"`
 }
+type PolicyPrincipal struct {
+	Adapter              string `json:"adapter"`
+	Subject              string `json:"subject"`
+	AuthenticationMethod string `json:"authenticationMethod"`
+}
+
+type PolicyActor struct {
+	ID                    string            `json:"id"`
+	Principals            []PolicyPrincipal `json:"principals"`
+	Guilds                []string          `json:"guilds"`
+	Capabilities          []string          `json:"capabilities"`
+	Mode                  string            `json:"mode"`
+	PreapprovedOperations []string          `json:"preapprovedOperations,omitempty"`
+}
+
+type Policy struct {
+	Mode   string        `json:"mode"`
+	Actors []PolicyActor `json:"actors"`
+}
+
+type Approvals struct {
+	MaxTTL string `json:"maxTtl"`
+}
+
+type Audit struct {
+	Path          string `json:"path"`
+	RetentionDays int    `json:"retentionDays"`
+	MaxBytes      int64  `json:"maxBytes"`
+}
+
+type Reconciliation struct {
+	StateDirectory           string `json:"stateDirectory"`
+	MaxOperations            int    `json:"maxOperations"`
+	MaxDestructiveOperations int    `json:"maxDestructiveOperations"`
+	RetentionDays            int    `json:"retentionDays"`
+}
+
+type SecurityAlerts struct {
+	DenialThreshold      int    `json:"denialThreshold"`
+	DenialWindow         string `json:"denialWindow"`
+	DestructiveThreshold int    `json:"destructiveThreshold"`
+	DestructiveWindow    string `json:"destructiveWindow"`
+}
 
 type File struct {
-	Version       int           `json:"version"`
-	Discord       Discord       `json:"discord"`
-	MCP           MCP           `json:"mcp"`
-	Observability Observability `json:"observability"`
+	Version                    int             `json:"version"`
+	Discord                    Discord         `json:"discord"`
+	MCP                        MCP             `json:"mcp"`
+	Observability              Observability   `json:"observability"`
+	Policy                     *Policy         `json:"policy,omitempty"`
+	Approvals                  *Approvals      `json:"approvals,omitempty"`
+	Audit                      *Audit          `json:"audit,omitempty"`
+	SecurityAlerts             *SecurityAlerts `json:"securityAlerts,omitempty"`
+	Reconciliation             *Reconciliation `json:"reconciliation,omitempty"`
+	SecretEnvironmentAllowlist []string        `json:"secretEnvironmentAllowlist,omitempty"`
 }
 
 type Resolved struct {
-	Version       int
-	DiscordToken  Secret
-	MCPEnabled    bool
-	Observability Observability
+	Version         int
+	DiscordToken    Secret
+	DiscordWebhooks map[string]Secret
+	SecretProvider  *EnvironmentSecretProvider
+	MCPEnabled      bool
+	Observability   Observability
+	Policy          Policy
+	Approvals       Approvals
+	Audit           Audit
+	SecurityAlerts  SecurityAlerts
+	Reconciliation  Reconciliation
 }
 
 type Diagnostics struct {
@@ -50,6 +112,24 @@ type Diagnostics struct {
 }
 
 type SecretResolver interface{ ResolveEnvironment(string) (string, bool) }
+
+func applySecurityDefaults(file *File) {
+	if file.Policy == nil {
+		file.Policy = &Policy{Mode: "read_only", Actors: []PolicyActor{}}
+	}
+	if file.Approvals == nil {
+		file.Approvals = &Approvals{MaxTTL: "15m"}
+	}
+	if file.Audit == nil {
+		file.Audit = &Audit{Path: "audit/events.jsonl", RetentionDays: 30, MaxBytes: 64 << 20}
+	}
+	if file.SecurityAlerts == nil {
+		file.SecurityAlerts = &SecurityAlerts{DenialThreshold: 10, DenialWindow: "5m", DestructiveThreshold: 5, DestructiveWindow: "5m"}
+	}
+	if file.Reconciliation == nil {
+		file.Reconciliation = &Reconciliation{StateDirectory: "state", MaxOperations: 100, MaxDestructiveOperations: 10, RetentionDays: 30}
+	}
+}
 
 type EnvironmentResolver struct{ Lookup func(string) (string, bool) }
 
@@ -86,14 +166,27 @@ func Load(reader io.Reader, resolver SecretResolver) (Resolved, error) {
 	if err := requireEOF(decoder); err != nil {
 		return Resolved{}, err
 	}
+	applySecurityDefaults(&file)
 	if err := validate(file); err != nil {
 		return Resolved{}, err
 	}
-	value, ok := resolver.ResolveEnvironment(file.Discord.Token.Name)
-	if !ok || value == "" {
+	provider, err := NewEnvironmentSecretProvider(resolver, nil)
+	if err != nil {
+		return Resolved{}, err
+	}
+	token, err := provider.Secret(file.Discord.Token)
+	if err != nil || token.Use(func(string) error { return nil }) != nil {
 		return Resolved{}, errors.New("required Discord environment secret is unavailable")
 	}
-	return Resolved{Version: file.Version, DiscordToken: newSecret(value), MCPEnabled: *file.MCP.Enabled, Observability: file.Observability}, nil
+	webhooks := make(map[string]Secret, len(file.Discord.Webhooks))
+	for _, configured := range file.Discord.Webhooks {
+		handle, handleErr := provider.Secret(configured.URL)
+		if handleErr != nil || handle.Use(func(string) error { return nil }) != nil {
+			return Resolved{}, errors.New("required Discord webhook environment secret is unavailable")
+		}
+		webhooks[configured.Name] = handle
+	}
+	return Resolved{Version: file.Version, DiscordToken: token, DiscordWebhooks: webhooks, SecretProvider: provider, MCPEnabled: *file.MCP.Enabled, Observability: file.Observability, Policy: *file.Policy, Approvals: *file.Approvals, Audit: *file.Audit, SecurityAlerts: *file.SecurityAlerts, Reconciliation: *file.Reconciliation}, nil
 }
 
 func (r Resolved) Diagnostics() Diagnostics {

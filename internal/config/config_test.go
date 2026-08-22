@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -19,6 +20,64 @@ type resolver map[string]string
 func (r resolver) ResolveEnvironment(name string) (string, bool) {
 	value, ok := r[name]
 	return value, ok
+}
+
+type mutableResolver struct {
+	mu     sync.RWMutex
+	values map[string]string
+}
+
+func (r *mutableResolver) ResolveEnvironment(name string) (string, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	value, ok := r.values[name]
+	return value, ok
+}
+func (r *mutableResolver) set(name, value string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.values[name] = value
+}
+
+type captureRegistrar struct {
+	mu     sync.Mutex
+	values []string
+}
+
+func (r *captureRegistrar) RegisterSecret(value string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.values = append(r.values, value)
+}
+
+func TestSecretReferencesRotateWithoutExposure(t *testing.T) {
+	first, second := "bot-token-first-canary", "bot-token-second-canary"
+	resolver := &mutableResolver{values: map[string]string{"DISCORD_BOT_TOKEN": first}}
+	resolved, err := Load(strings.NewReader(valid), resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registrar := &captureRegistrar{}
+	resolved.SecretProvider.SetRegistrar(registrar)
+	used := ""
+	if err := resolved.DiscordToken.Use(func(value string) error { used = value; return nil }); err != nil || used != first {
+		t.Fatalf("first use: %q %v", used, err)
+	}
+	resolver.set("DISCORD_BOT_TOKEN", second)
+	if err := resolved.DiscordToken.Use(func(value string) error { used = value; return nil }); err != nil || used != second {
+		t.Fatalf("rotated use: %q %v", used, err)
+	}
+	outputs := []any{resolved.DiscordToken, []Secret{resolved.DiscordToken}, map[string]Secret{"token": resolved.DiscordToken}, fmt.Errorf("wrapped %v", resolved.DiscordToken)}
+	for _, output := range outputs {
+		encoded, _ := json.Marshal(output)
+		snapshot := fmt.Sprintf("%v %#v %s", output, output, encoded)
+		if strings.Contains(snapshot, first) || strings.Contains(snapshot, second) {
+			t.Fatalf("secret snapshot leaked: %s", snapshot)
+		}
+	}
+	if len(registrar.values) != 2 || registrar.values[0] != first || registrar.values[1] != second {
+		t.Fatalf("registration order = %#v", registrar.values)
+	}
 }
 
 func TestLoadValidAndSecretNeverSerializes(t *testing.T) {
@@ -43,6 +102,43 @@ func TestLoadValidAndSecretNeverSerializes(t *testing.T) {
 			t.Fatalf("secret leaked: %q", output)
 		}
 	}
+}
+
+func TestPolicyConfigDefaultsAndStrictValidation(t *testing.T) {
+	resolved, err := Load(strings.NewReader(valid), resolver{"DISCORD_BOT_TOKEN": canary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Policy.Mode != "read_only" || len(resolved.Policy.Actors) != 0 || resolved.Audit.Path == "" {
+		t.Fatalf("defaults = %#v", resolved)
+	}
+	explicit := `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"},"webhooks":[{"name":"alerts","url":{"source":"env","name":"DISCORD_ALERT_WEBHOOK"}}]},"mcp":{"enabled":true},"observability":{"exporter":"none"},"secretEnvironmentAllowlist":["DISCORD_ALERT_WEBHOOK"],"policy":{"mode":"apply","actors":[{"id":"operator","principals":[{"adapter":"mcp","subject":"local-user","authenticationMethod":"os-process"}],"guilds":["123"],"capabilities":["channel.read"],"mode":"read_only"}]},"approvals":{"maxTtl":"10m"},"audit":{"path":"audit/events.jsonl","retentionDays":30,"maxBytes":1048576},"securityAlerts":{"denialThreshold":5,"denialWindow":"1m","destructiveThreshold":2,"destructiveWindow":"1m"}}`
+	if _, err := Load(strings.NewReader(explicit), resolver{"DISCORD_BOT_TOKEN": canary, "DISCORD_ALERT_WEBHOOK": "https://discord.com/api/webhooks/canary"}); err != nil {
+		t.Fatal(err)
+	}
+	rejections := []string{
+		strings.Replace(explicit, `"channel.read"`, `"*"`, 1),
+		strings.Replace(explicit, `"channel.read"`, `"unknown.capability"`, 1),
+		strings.Replace(explicit, `"guilds":["123"]`, `"guilds":["123","123"]`, 1),
+		strings.Replace(explicit, `"path":"audit/events.jsonl"`, `"path":"../events.jsonl"`, 1),
+		strings.Replace(explicit, `"denialThreshold":5`, `"denialThreshold":0`, 1),
+	}
+	for _, input := range rejections {
+		if _, err := Load(strings.NewReader(input), resolver{"DISCORD_BOT_TOKEN": canary, "DISCORD_ALERT_WEBHOOK": "https://discord.com/api/webhooks/canary"}); err == nil {
+			t.Fatalf("expected rejection: %s", input)
+		}
+	}
+}
+
+func FuzzConfigParser(f *testing.F) {
+	f.Add([]byte(valid))
+	f.Add([]byte(`{"version":1}`))
+	f.Fuzz(func(t *testing.T, input []byte) {
+		if len(input) > MaxBytes+1 {
+			return
+		}
+		_, _ = Load(bytes.NewReader(input), resolver{"DISCORD_BOT_TOKEN": canary})
+	})
 }
 
 func TestLoadRejectsInvalidInputWithoutCanary(t *testing.T) {
