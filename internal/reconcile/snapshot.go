@@ -17,6 +17,7 @@ type SnapshotInput struct {
 	Roles               []domain.Role
 	Webhooks            []domain.Webhook
 	ApplicationCommands []domain.ApplicationCommand
+	AutoModerationRules []domain.AutoModerationRule
 	Onboarding          *domain.Onboarding
 	OnboardingSupport   domain.SupportStatus
 	Bindings            []domain.ResourceBinding
@@ -42,7 +43,8 @@ func NormalizeSnapshot(input SnapshotInput) (domain.GuildSnapshot, error) {
 	roles := append([]domain.Role(nil), input.Roles...)
 	webhooks := append([]domain.Webhook(nil), input.Webhooks...)
 	commands := append([]domain.ApplicationCommand(nil), input.ApplicationCommands...)
-	if err := validateObservedGuild(input.Guild.ID, input.ApplicationID, channels, webhooks, commands, input.Onboarding); err != nil {
+	autoModerationRules := append([]domain.AutoModerationRule(nil), input.AutoModerationRules...)
+	if err := validateObservedGuild(input.Guild.ID, input.ApplicationID, channels, webhooks, commands, autoModerationRules, input.Onboarding); err != nil {
 		return domain.GuildSnapshot{}, err
 	}
 
@@ -69,6 +71,15 @@ func NormalizeSnapshot(input SnapshotInput) (domain.GuildSnapshot, error) {
 		return channels[i].ID < channels[j].ID
 	})
 	sort.SliceStable(webhooks, func(i, j int) bool { return webhooks[i].ID < webhooks[j].ID })
+	sort.SliceStable(autoModerationRules, func(i, j int) bool {
+		if autoModerationRules[i].TriggerType != autoModerationRules[j].TriggerType {
+			return autoModerationRules[i].TriggerType < autoModerationRules[j].TriggerType
+		}
+		if autoModerationRules[i].Name != autoModerationRules[j].Name {
+			return autoModerationRules[i].Name < autoModerationRules[j].Name
+		}
+		return autoModerationRules[i].ID < autoModerationRules[j].ID
+	})
 	sort.SliceStable(commands, func(i, j int) bool {
 		if commands[i].Type != commands[j].Type {
 			return commands[i].Type < commands[j].Type
@@ -81,9 +92,10 @@ func NormalizeSnapshot(input SnapshotInput) (domain.GuildSnapshot, error) {
 
 	snapshot := domain.GuildSnapshot{
 		Metadata: domain.SnapshotMetadata{SchemaVersion: domain.SnapshotSchemaV1, GuildID: input.Guild.ID, ApplicationID: input.ApplicationID, CapturedAt: input.CapturedAt},
-		Guild:    input.Guild, Categories: []domain.SnapshotResource{}, Channels: []domain.SnapshotResource{}, Roles: []domain.SnapshotResource{}, Webhooks: []domain.SnapshotResource{}, ApplicationCommands: []domain.SnapshotResource{},
+		Guild:    input.Guild, Categories: []domain.SnapshotResource{}, Channels: []domain.SnapshotResource{}, Roles: []domain.SnapshotResource{}, Webhooks: []domain.SnapshotResource{}, ApplicationCommands: []domain.SnapshotResource{}, AutoModerationRules: []domain.SnapshotResource{},
+
 		Onboarding: input.Onboarding, Capabilities: []domain.SnapshotCapability{}, Bindings: append([]domain.ResourceBinding(nil), input.Bindings...),
-		ObservedChannels: channels, ObservedRoles: roles, ObservedWebhooks: webhooks, ObservedCommands: commands,
+		ObservedChannels: channels, ObservedRoles: roles, ObservedWebhooks: webhooks, ObservedCommands: commands, ObservedAutoModerationRules: autoModerationRules,
 	}
 	channelRefs := make(map[domain.ChannelID]domain.StableResourceRef)
 	for index, channel := range channels {
@@ -122,6 +134,13 @@ func NormalizeSnapshot(input SnapshotInput) (domain.GuildSnapshot, error) {
 			return domain.GuildSnapshot{}, err
 		}
 		snapshot.Webhooks = append(snapshot.Webhooks, resource)
+	}
+	for index, rule := range autoModerationRules {
+		resource, err := snapshotAutoModerationRule(rule, index, bindingsByRemote[domain.Snowflake(rule.ID)])
+		if err != nil {
+			return domain.GuildSnapshot{}, err
+		}
+		snapshot.AutoModerationRules = append(snapshot.AutoModerationRules, resource)
 	}
 	for index, command := range commands {
 		resource, err := snapshotCommand(command, index, bindingsByRemote[domain.Snowflake(command.ID)])
@@ -196,6 +215,17 @@ func snapshotWebhook(webhook domain.Webhook, order int, binding domain.ResourceB
 	return makeSnapshotResource(domain.ResourceWebhook, domain.Snowflake(webhook.ID), name, webhook.Type, order, fingerprint, binding, protected, []string{"name", "channel_id"}), nil
 }
 
+func snapshotAutoModerationRule(rule domain.AutoModerationRule, order int, binding domain.ResourceBinding) (domain.SnapshotResource, error) {
+	mutable := rule
+	mutable.ID, mutable.GuildID, mutable.CreatorID = "", "", ""
+	mutable.TriggerMetadata = domain.NormalizeDesiredAutoModerationRule(domain.DesiredAutoModerationRule{TriggerMetadata: mutable.TriggerMetadata}).TriggerMetadata
+	fingerprint, err := HashCanonical(mutable)
+	if err != nil {
+		return domain.SnapshotResource{}, err
+	}
+	return makeSnapshotResource(domain.ResourceAutoModerationRule, domain.Snowflake(rule.ID), rule.Name, int(rule.TriggerType), order, fingerprint, binding, false, []string{"name", "event_type", "trigger_type", "trigger_metadata", "actions", "enabled", "exempt_roles", "exempt_channels"}), nil
+}
+
 func snapshotCommand(command domain.ApplicationCommand, order int, binding domain.ResourceBinding) (domain.SnapshotResource, error) {
 	mutable := command
 	mutable.ID, mutable.ApplicationID, mutable.GuildID, mutable.Version = "", "", nil, ""
@@ -224,7 +254,7 @@ func makeSnapshotResource(kind domain.ResourceKind, remoteID domain.Snowflake, n
 	return domain.SnapshotResource{Ref: ref, RemoteID: remoteID, Name: name, Type: resourceType, Order: order, Managed: managed, Protected: protected, Fingerprint: fingerprint, Fields: snapshotFields}
 }
 
-func validateObservedGuild(guildID domain.GuildID, applicationID domain.ApplicationID, channels []domain.Channel, webhooks []domain.Webhook, commands []domain.ApplicationCommand, onboarding *domain.Onboarding) error {
+func validateObservedGuild(guildID domain.GuildID, applicationID domain.ApplicationID, channels []domain.Channel, webhooks []domain.Webhook, commands []domain.ApplicationCommand, autoModerationRules []domain.AutoModerationRule, onboarding *domain.Onboarding) error {
 	for _, channel := range channels {
 		if channel.GuildID != nil && *channel.GuildID != guildID {
 			return fmt.Errorf("channel %s belongs to another guild", channel.ID)
@@ -233,6 +263,11 @@ func validateObservedGuild(guildID domain.GuildID, applicationID domain.Applicat
 	for _, webhook := range webhooks {
 		if webhook.GuildID == nil || *webhook.GuildID != guildID {
 			return fmt.Errorf("webhook %s does not belong to requested guild", webhook.ID)
+		}
+	}
+	for _, rule := range autoModerationRules {
+		if rule.GuildID != guildID {
+			return fmt.Errorf("AutoMod rule %s belongs to another guild", rule.ID)
 		}
 	}
 	for _, command := range commands {

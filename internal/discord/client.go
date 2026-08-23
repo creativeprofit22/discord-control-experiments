@@ -360,7 +360,7 @@ func extractContext(command domain.Command) domain.CommandContext {
 func (c *Client) executeInspection(ctx context.Context, request domain.InspectGuild) (application.DiscordPortResult, error) {
 	guild := request.GuildScope()
 	base := domain.CommandContext{GuildID: guild}
-	commands := []domain.Command{domain.InspectGuild{CommandContext: base}, domain.ListGuildChannels{CommandContext: base}, domain.ListGuildRoles{CommandContext: base}, domain.ListGuildWebhooks{CommandContext: base}, domain.GetGuildOnboarding{CommandContext: base}, domain.ListGuildInvites{CommandContext: base}, domain.ListScheduledEvents{CommandContext: base}}
+	commands := []domain.Command{domain.InspectGuild{CommandContext: base}, domain.ListGuildChannels{CommandContext: base}, domain.ListGuildRoles{CommandContext: base}, domain.ListGuildWebhooks{CommandContext: base}, domain.ListAutoModerationRules{CommandContext: base}, domain.GetGuildOnboarding{CommandContext: base}, domain.ListGuildInvites{CommandContext: base}, domain.ListScheduledEvents{CommandContext: base}}
 	if request.ApplicationID != nil {
 		commands = append(commands, domain.ListGuildApplicationCommands{CommandContext: base, ApplicationID: *request.ApplicationID})
 	}
@@ -397,6 +397,8 @@ func (c *Client) executeInspection(ctx context.Context, request domain.InspectGu
 			inspection.Onboarding = &value
 		case []domain.ApplicationCommand:
 			inspection.ApplicationCommands = value
+		case []domain.AutoModerationRule:
+			inspection.AutoModerationRules = value
 		case []domain.Invite:
 			inspection.Invites = value
 		case []domain.ScheduledEvent:

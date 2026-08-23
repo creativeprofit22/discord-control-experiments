@@ -273,6 +273,64 @@ func Diff(desired domain.DesiredGuild, snapshot domain.GuildSnapshot, matches Ma
 			}
 		}
 	}
+	for index := range desired.AutoModerationRules {
+		rule := desired.AutoModerationRules[index]
+		if rule.Mode != domain.ManagementModeManaged {
+			continue
+		}
+		ref := domain.StableResourceRef{Kind: domain.ResourceAutoModerationRule, LogicalID: rule.LogicalID}
+		match, exists := matched[ref]
+		if !exists {
+			if hasMatchConflict(matches.Conflicts, ref) {
+				continue
+			}
+			if conflict := unmanagedNameConflict(ref, rule.Name, int(rule.TriggerType), snapshot); conflict != nil {
+				conflicts = append(conflicts, *conflict)
+				continue
+			}
+			create := rule
+			if rule.Enabled {
+				create.Enabled = false
+				if err := appendOperation(domain.PlanOperation{Kind: domain.OperationCreate, Resource: ref, Preconditions: domain.Preconditions{ExpectedAbsent: true}, Payload: domain.OperationPayload{AutoModerationRule: &create}}); err != nil {
+					return nil, nil, err
+				}
+				if err := appendOperation(domain.PlanOperation{Kind: domain.OperationUpdate, Resource: ref, Payload: domain.OperationPayload{AutoModerationRule: &rule}}); err != nil {
+					return nil, nil, err
+				}
+			} else if err := appendOperation(domain.PlanOperation{Kind: domain.OperationCreate, Resource: ref, Preconditions: domain.Preconditions{ExpectedAbsent: true}, Payload: domain.OperationPayload{AutoModerationRule: &create}}); err != nil {
+				return nil, nil, err
+			}
+			continue
+		}
+		observed := findObservedAutoModerationRule(snapshot.ObservedAutoModerationRules, domain.AutoModerationRuleID(match.RemoteID))
+		if observed == nil {
+			return nil, nil, fmt.Errorf("matched AutoMod rule %s is absent", ref.LogicalID)
+		}
+		if observed.TriggerType != rule.TriggerType {
+			replacement := rule
+			if rule.Enabled {
+				replacement.Enabled = false
+			}
+			if err := appendReplacement(ref, resourcesByID[match.RemoteID], domain.OperationPayload{AutoModerationRule: &replacement}, &operations, appendOperation); err != nil {
+				return nil, nil, err
+			}
+			if rule.Enabled {
+				if err := appendOperation(domain.PlanOperation{Kind: domain.OperationUpdate, Resource: ref, Payload: domain.OperationPayload{AutoModerationRule: &rule}}); err != nil {
+					return nil, nil, err
+				}
+			}
+			continue
+		}
+		changed, err := autoModerationRuleChanged(rule, *observed, matched)
+		if err != nil {
+			return nil, nil, err
+		}
+		if changed {
+			if err := appendOperation(domain.PlanOperation{Kind: domain.OperationUpdate, Resource: ref, Preconditions: resourcePreconditions(match, snapshot), Payload: domain.OperationPayload{AutoModerationRule: &rule}}); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
 	if desired.Onboarding != nil {
 		ref := domain.StableResourceRef{Kind: domain.ResourceOnboarding, LogicalID: "guild-onboarding"}
 		if snapshotCapability(snapshot, domain.ResourceOnboarding) == domain.SupportUnavailable {
@@ -359,6 +417,71 @@ func overwritesChanged(desired []domain.DesiredOverwrite, observed []domain.Perm
 	sort.Slice(actual, func(i, j int) bool { return actual[i].ID < actual[j].ID })
 	return !reflect.DeepEqual(expected, actual)
 }
+func findObservedAutoModerationRule(rules []domain.AutoModerationRule, id domain.AutoModerationRuleID) *domain.AutoModerationRule {
+	for index := range rules {
+		if rules[index].ID == id {
+			return &rules[index]
+		}
+	}
+	return nil
+}
+
+func hasMatchConflict(conflicts []domain.PlanConflict, ref domain.StableResourceRef) bool {
+	for _, conflict := range conflicts {
+		if conflict.Resource == ref {
+			return true
+		}
+	}
+	return false
+}
+
+func autoModerationRuleChanged(desired domain.DesiredAutoModerationRule, observed domain.AutoModerationRule, matches map[domain.StableResourceRef]ResourceMatch) (bool, error) {
+	var exemptRoles []domain.RoleID
+	for _, ref := range desired.ExemptRoles {
+		match, ok := matches[ref]
+		if !ok {
+			return true, nil
+		}
+		exemptRoles = append(exemptRoles, domain.RoleID(match.RemoteID))
+	}
+	var exemptChannels []domain.ChannelID
+	for _, ref := range desired.ExemptChannels {
+		match, ok := matches[ref]
+		if !ok {
+			return true, nil
+		}
+		exemptChannels = append(exemptChannels, domain.ChannelID(match.RemoteID))
+	}
+	actions := make([]domain.AutoModerationAction, 0, len(desired.Actions))
+	for _, desiredAction := range desired.Actions {
+		metadata := &domain.AutoModerationActionMetadata{DurationSeconds: desiredAction.DurationSeconds, CustomMessage: desiredAction.CustomMessage}
+		if desiredAction.AlertChannel != nil {
+			match, ok := matches[*desiredAction.AlertChannel]
+			if !ok {
+				return true, nil
+			}
+			channelID := domain.ChannelID(match.RemoteID)
+			metadata.ChannelID = &channelID
+		}
+		if metadata.ChannelID == nil && metadata.DurationSeconds == nil && metadata.CustomMessage == nil {
+			metadata = nil
+		}
+		actions = append(actions, domain.AutoModerationAction{Type: desiredAction.Type, Metadata: metadata})
+	}
+	sort.Slice(exemptRoles, func(i, j int) bool { return exemptRoles[i] < exemptRoles[j] })
+	sort.Slice(exemptChannels, func(i, j int) bool { return exemptChannels[i] < exemptChannels[j] })
+	sort.Slice(actions, func(i, j int) bool { return actions[i].Type < actions[j].Type })
+	actualRoles := append([]domain.RoleID(nil), observed.ExemptRoles...)
+	sort.Slice(actualRoles, func(i, j int) bool { return actualRoles[i] < actualRoles[j] })
+	actualChannels := append([]domain.ChannelID(nil), observed.ExemptChannels...)
+	sort.Slice(actualChannels, func(i, j int) bool { return actualChannels[i] < actualChannels[j] })
+	actualActions := append([]domain.AutoModerationAction(nil), observed.Actions...)
+	sort.Slice(actualActions, func(i, j int) bool { return actualActions[i].Type < actualActions[j].Type })
+	normalized := domain.NormalizeDesiredAutoModerationRule(desired)
+	actualMetadata := domain.NormalizeDesiredAutoModerationRule(domain.DesiredAutoModerationRule{TriggerMetadata: observed.TriggerMetadata}).TriggerMetadata
+	return observed.Name != desired.Name || observed.EventType != desired.EventType || !reflect.DeepEqual(actualMetadata, normalized.TriggerMetadata) || !reflect.DeepEqual(actualActions, actions) || observed.Enabled != desired.Enabled || !reflect.DeepEqual(actualRoles, exemptRoles) || !reflect.DeepEqual(actualChannels, exemptChannels), nil
+}
+
 func commandChanged(desired domain.DesiredApplicationCommand, observed domain.ApplicationCommand) bool {
 	return desired.Type != observed.Type || desired.Name != observed.Name || desired.Description != observed.Description || !equalCommandOptions(desired.Options, observed.Options) || !reflect.DeepEqual(desired.DefaultMemberPermissions, observed.DefaultMemberPermissions) || !reflect.DeepEqual(desired.NSFW, observed.NSFW)
 }

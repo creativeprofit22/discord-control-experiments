@@ -1,0 +1,3 @@
+Usage: discord-control escalation apply --guild VALUE --input VALUE
+
+Apply a reviewed escalation decision

@@ -30,30 +30,45 @@ const (
 )
 
 const (
-	CapabilityGuildInspect             Capability = "guild.inspect"
-	CapabilityChannelRead              Capability = "channel.read"
-	CapabilityChannelManage            Capability = "channel.manage"
-	CapabilityRoleRead                 Capability = "role.read"
-	CapabilityRoleManage               Capability = "role.manage"
-	CapabilityMemberRead               Capability = "member.read"
-	CapabilityMemberModerate           Capability = "member.moderate"
-	CapabilityMessageRead              Capability = "message.read"
-	CapabilityMessageManage            Capability = "message.manage"
-	CapabilityWebhookRead              Capability = "webhook.read"
-	CapabilityWebhookManage            Capability = "webhook.manage"
-	CapabilityInviteRead               Capability = "invite.read"
-	CapabilityInviteManage             Capability = "invite.manage"
-	CapabilityApplicationCommandRead   Capability = "application_command.read"
-	CapabilityApplicationCommandManage Capability = "application_command.manage"
-	CapabilityOnboardingRead           Capability = "onboarding.read"
-	CapabilityOnboardingManage         Capability = "onboarding.manage"
-	CapabilityScheduledEventRead       Capability = "scheduled_event.read"
-	CapabilityScheduledEventManage     Capability = "scheduled_event.manage"
-	CapabilityAutoModerationRead       Capability = "auto_moderation.read"
-	CapabilityAutoModerationManage     Capability = "auto_moderation.manage"
-	CapabilityJobRead                  Capability = "job.read"
-	CapabilityJobCancel                Capability = "job.cancel"
-	CapabilityJobResume                Capability = "job.resume"
+	CapabilityGuildInspect              Capability = "guild.inspect"
+	CapabilityChannelRead               Capability = "channel.read"
+	CapabilityChannelManage             Capability = "channel.manage"
+	CapabilityRoleRead                  Capability = "role.read"
+	CapabilityRoleManage                Capability = "role.manage"
+	CapabilityMemberRead                Capability = "member.read"
+	CapabilityMemberModerate            Capability = "member.moderate"
+	CapabilityMessageRead               Capability = "message.read"
+	CapabilityMessageManage             Capability = "message.manage"
+	CapabilityWebhookRead               Capability = "webhook.read"
+	CapabilityWebhookManage             Capability = "webhook.manage"
+	CapabilityInviteRead                Capability = "invite.read"
+	CapabilityInviteManage              Capability = "invite.manage"
+	CapabilityApplicationCommandRead    Capability = "application_command.read"
+	CapabilityApplicationCommandManage  Capability = "application_command.manage"
+	CapabilityOnboardingRead            Capability = "onboarding.read"
+	CapabilityOnboardingManage          Capability = "onboarding.manage"
+	CapabilityScheduledEventRead        Capability = "scheduled_event.read"
+	CapabilityScheduledEventManage      Capability = "scheduled_event.manage"
+	CapabilityAutoModerationRead        Capability = "auto_moderation.read"
+	CapabilityAutoModerationManage      Capability = "auto_moderation.manage"
+	CapabilityJobRead                   Capability = "job.read"
+	CapabilityJobCancel                 Capability = "job.cancel"
+	CapabilityJobResume                 Capability = "job.resume"
+	CapabilityModerationCaseRead        Capability = "moderation.case.read"
+	CapabilityModerationCaseWrite       Capability = "moderation.case.write"
+	CapabilityModerationEvidenceWrite   Capability = "moderation.evidence.write"
+	CapabilityModerationEvidenceExport  Capability = "moderation.evidence.export"
+	CapabilityModerationWarn            Capability = "moderation.warn"
+	CapabilityModerationTimeout         Capability = "moderation.timeout"
+	CapabilityModerationKick            Capability = "moderation.kick"
+	CapabilityModerationBan             Capability = "moderation.ban"
+	CapabilityModerationMessageDelete   Capability = "moderation.message_delete"
+	CapabilityModerationQuarantine      Capability = "moderation.quarantine"
+	CapabilityModerationInviteControl   Capability = "moderation.invite_control"
+	CapabilityModerationEscalation      Capability = "moderation.escalation.evaluate"
+	CapabilityModerationLockdownPlan    Capability = "moderation.lockdown.plan"
+	CapabilityModerationLockdownApply   Capability = "moderation.lockdown.apply"
+	CapabilityModerationLockdownRecover Capability = "moderation.lockdown.recover"
 )
 
 const (
@@ -84,6 +99,10 @@ const (
 	ResourceCategory            ResourceKind = "category"
 	ResourcePermissionOverwrite ResourceKind = "permission_overwrite"
 	ResourceScheduledEvent      ResourceKind = "scheduled_event"
+	ResourceAutoModerationRule  ResourceKind = "auto_moderation_rule"
+	ResourceModerationCase      ResourceKind = "moderation_case"
+	ResourceModerationEvidence  ResourceKind = "moderation_evidence"
+	ResourceLockdownPlan        ResourceKind = "lockdown_plan"
 )
 
 const (
@@ -133,6 +152,7 @@ type PolicyDecision struct {
 const (
 	ApprovalScopeOperation          ApprovalScopeKind = "operation"
 	ApprovalScopeReconciliationPlan ApprovalScopeKind = "reconciliation_plan"
+	ApprovalScopeLockdownPlan       ApprovalScopeKind = "lockdown_plan"
 )
 
 type ApprovalGrant struct {
@@ -216,7 +236,13 @@ func ValidCapability(capability Capability) bool {
 		CapabilityWebhookManage, CapabilityInviteRead, CapabilityInviteManage, CapabilityApplicationCommandRead,
 		CapabilityApplicationCommandManage, CapabilityOnboardingRead, CapabilityOnboardingManage,
 		CapabilityScheduledEventRead, CapabilityScheduledEventManage, CapabilityAutoModerationRead, CapabilityAutoModerationManage,
-		CapabilityJobRead, CapabilityJobCancel, CapabilityJobResume:
+		CapabilityJobRead, CapabilityJobCancel, CapabilityJobResume,
+		CapabilityModerationCaseRead, CapabilityModerationCaseWrite, CapabilityModerationEvidenceWrite,
+		CapabilityModerationEvidenceExport, CapabilityModerationWarn, CapabilityModerationTimeout,
+		CapabilityModerationKick, CapabilityModerationBan, CapabilityModerationMessageDelete,
+		CapabilityModerationQuarantine, CapabilityModerationInviteControl, CapabilityModerationEscalation,
+		CapabilityModerationLockdownPlan, CapabilityModerationLockdownApply, CapabilityModerationLockdownRecover:
+
 		return true
 	default:
 		return false

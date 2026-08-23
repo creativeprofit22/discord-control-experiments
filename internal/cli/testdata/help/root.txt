@@ -1,12 +1,28 @@
 discord-control — deterministic Discord operator CLI
 
 Commands:
+  appeal export                  Export subject-visible appeal data
   apply                          Apply an approved immutable plan
   automod create                 create_auto_moderation_rule
   automod delete                 delete_auto_moderation_rule
   automod get                    get_auto_moderation_rule
   automod list                   list_auto_moderation_rules
   automod update                 modify_auto_moderation_rule
+  case ban                       moderation.ban
+  case bulk-delete               moderation.bulk_message_delete
+  case create                    Create a moderation case
+  case delete-message            moderation.message_delete
+  case get                       Get a moderation case
+  case invite-create             moderation.invite_create
+  case invite-revoke             moderation.invite_revoke
+  case kick                      moderation.kick
+  case list                      List moderation cases
+  case quarantine-add            moderation.quarantine_add
+  case quarantine-remove         moderation.quarantine_remove
+  case remove-timeout            moderation.timeout_remove
+  case timeout                   moderation.timeout
+  case unban                     moderation.unban
+  case warn                      moderation.warn
   channel create                 create_channel
   channel delete                 delete_channel
   channel delete-permission      delete_channel_permission
@@ -27,14 +43,21 @@ Commands:
   completion zsh                 Generate zsh completion
   diagnostics bundle             Write a bounded sanitized diagnostic bundle
   drift                          Compare current state with a saved plan
+  escalation apply               Apply a reviewed escalation decision
+  escalation evaluate            Evaluate deterministic escalation
+  evidence attach                Attach a structured evidence locator
   health discord                 Run a bounded read-only Discord check
   health local                   Check local configuration and state without egress
   help                           Show deterministic command help
   inspect                        Inspect a guild
+  invite list                    moderation.invite_list
   job cancel                     Persist cooperative job cancellation
   job get                        Get bounded workflow job metadata
   job list                       List durable workflow jobs
   job resume                     Resume a recoverable durable job
+  lockdown apply                 Apply a reviewed lockdown plan
+  lockdown plan                  Build and persist lockdown/recovery plans
+  lockdown recover               Apply exact reviewed lockdown recovery
   member add-role                add_member_role
   member get                     get_member
   member list                    list_members

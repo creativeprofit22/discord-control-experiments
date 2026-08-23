@@ -22,6 +22,22 @@
     },
     "commandInputs": {
       "properties": {
+        "appeal export": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
         "apply": {
           "additionalProperties": false,
           "properties": {
@@ -120,6 +136,246 @@
           "required": [
             "guild",
             "rule",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case ban": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case bulk-delete": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case create": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case delete-message": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case get": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case invite-create": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case invite-revoke": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case kick": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case list": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case quarantine-add": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case quarantine-remove": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case remove-timeout": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case timeout": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case unban": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "case warn": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
             "input"
           ],
           "type": "object"
@@ -428,6 +684,54 @@
           ],
           "type": "object"
         },
+        "escalation apply": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "escalation evaluate": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "evidence attach": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
         "health discord": {
           "additionalProperties": false,
           "properties": {
@@ -453,6 +757,18 @@
           "type": "object"
         },
         "inspect": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild"
+          ],
+          "type": "object"
+        },
+        "invite list": {
           "additionalProperties": false,
           "properties": {
             "guild": {
@@ -514,6 +830,62 @@
           "required": [
             "run",
             "plan-hash"
+          ],
+          "type": "object"
+        },
+        "lockdown apply": {
+          "additionalProperties": false,
+          "properties": {
+            "approval-id": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "plan-hash": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "plan-hash",
+            "approval-id"
+          ],
+          "type": "object"
+        },
+        "lockdown plan": {
+          "additionalProperties": false,
+          "properties": {
+            "guild": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "input"
+          ],
+          "type": "object"
+        },
+        "lockdown recover": {
+          "additionalProperties": false,
+          "properties": {
+            "approval-id": {
+              "type": "string"
+            },
+            "guild": {
+              "type": "string"
+            },
+            "plan-hash": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "guild",
+            "plan-hash",
+            "approval-id"
           ],
           "type": "object"
         },

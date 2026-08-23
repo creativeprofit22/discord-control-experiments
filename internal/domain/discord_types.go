@@ -233,6 +233,7 @@ type GuildInspection struct {
 	Roles                 []Role               `json:"roles"`
 	Webhooks              []Webhook            `json:"webhooks"`
 	ApplicationCommands   []ApplicationCommand `json:"application_commands,omitempty"`
+	AutoModerationRules   []AutoModerationRule `json:"auto_moderation_rules,omitempty"`
 	Onboarding            *Onboarding          `json:"onboarding,omitempty"`
 	OnboardingUnsupported bool                 `json:"onboarding_unsupported,omitempty"`
 	Invites               []Invite             `json:"invites"`

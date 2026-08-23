@@ -32,6 +32,10 @@ func HashCanonical(value any) (string, error) {
 }
 
 func NormalizeDesired(desired domain.DesiredGuild) domain.DesiredGuild {
+	if desired.SchemaVersion == domain.DeclarativeSchemaV1 {
+		desired.SchemaVersion = domain.DeclarativeSchemaV2
+		desired.AutoModerationRules = []domain.DesiredAutoModerationRule{}
+	}
 	if desired.Categories == nil {
 		desired.Categories = []domain.DesiredCategory{}
 	}
@@ -46,6 +50,9 @@ func NormalizeDesired(desired domain.DesiredGuild) domain.DesiredGuild {
 	}
 	if desired.ApplicationCommands == nil {
 		desired.ApplicationCommands = []domain.DesiredApplicationCommand{}
+	}
+	if desired.AutoModerationRules == nil {
+		desired.AutoModerationRules = []domain.DesiredAutoModerationRule{}
 	}
 
 	for index := range desired.Categories {
@@ -72,6 +79,10 @@ func NormalizeDesired(desired domain.DesiredGuild) domain.DesiredGuild {
 	}
 	for index := range desired.Webhooks {
 		desired.Webhooks[index].Mode = defaultMode(desired.Webhooks[index].Mode)
+	}
+	for index := range desired.AutoModerationRules {
+		desired.AutoModerationRules[index].Mode = defaultMode(desired.AutoModerationRules[index].Mode)
+		desired.AutoModerationRules[index] = domain.NormalizeDesiredAutoModerationRule(desired.AutoModerationRules[index])
 	}
 	for index := range desired.ApplicationCommands {
 		command := &desired.ApplicationCommands[index]
@@ -124,14 +135,18 @@ func NormalizeDesired(desired domain.DesiredGuild) domain.DesiredGuild {
 	sort.Slice(desired.ApplicationCommands, func(i, j int) bool {
 		return desired.ApplicationCommands[i].LogicalID < desired.ApplicationCommands[j].LogicalID
 	})
+	sort.Slice(desired.AutoModerationRules, func(i, j int) bool {
+		return desired.AutoModerationRules[i].LogicalID < desired.AutoModerationRules[j].LogicalID
+	})
 	return desired
 }
 
 func CanonicalDesired(desired domain.DesiredGuild) ([]byte, error) {
+	desired = NormalizeDesired(desired)
 	if err := ValidateDesired(desired); err != nil {
 		return nil, err
 	}
-	return CanonicalJSON(NormalizeDesired(desired))
+	return CanonicalJSON(desired)
 }
 
 func DesiredHash(desired domain.DesiredGuild) (string, error) {

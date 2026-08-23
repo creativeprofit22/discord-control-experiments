@@ -46,6 +46,9 @@ func validate(file File) error {
 	if err := validateReconciliation(*file.Reconciliation); err != nil {
 		return err
 	}
+	if err := validateModeration(*file.Moderation); err != nil {
+		return err
+	}
 	switch file.Observability.Exporter {
 	case "none", "stderr":
 		if file.Observability.Endpoint != "" {
@@ -217,6 +220,10 @@ var validCapabilities = map[string]bool{
 	"webhook.manage": true, "invite.read": true, "invite.manage": true, "application_command.read": true,
 	"application_command.manage": true, "onboarding.read": true, "onboarding.manage": true, "scheduled_event.read": true, "scheduled_event.manage": true,
 	"auto_moderation.read": true, "auto_moderation.manage": true, "job.read": true, "job.cancel": true, "job.resume": true,
+	"moderation.case.read": true, "moderation.case.write": true, "moderation.evidence.write": true, "moderation.evidence.export": true,
+	"moderation.warn": true, "moderation.timeout": true, "moderation.kick": true, "moderation.ban": true,
+	"moderation.message_delete": true, "moderation.quarantine": true, "moderation.invite_control": true,
+	"moderation.escalation.evaluate": true, "moderation.lockdown.plan": true, "moderation.lockdown.apply": true, "moderation.lockdown.recover": true,
 }
 
 func validatePolicy(policy Policy) error {
@@ -281,6 +288,113 @@ func validateReconciliation(value Reconciliation) error {
 	return nil
 }
 
+func validateModeration(value Moderation) error {
+	if !boundedIdentifier(value.PolicyVersion, 64) || value.MaxCasesPerGuild < 1 || value.MaxCasesPerGuild > 100000 || value.MaxActionsPerCase < 1 || value.MaxActionsPerCase > 1000 || value.MaxActionsPerSubjectWindow < 1 || value.MaxActionsPerSubjectWindow > 1000 || value.MaxActionsPerGuildWindow < value.MaxActionsPerSubjectWindow || value.MaxActionsPerGuildWindow > 10000 {
+		return errors.New("invalid moderation policy version or caps")
+	}
+	retention, retentionErr := time.ParseDuration(value.Retention)
+	planTTL, planTTLErr := time.ParseDuration(value.LockdownPlanTTL)
+	if retentionErr != nil || retention < 24*time.Hour || retention > 10*365*24*time.Hour || planTTLErr != nil || planTTL < time.Minute || planTTL > time.Hour {
+		return errors.New("invalid moderation retention or lockdown plan TTL")
+	}
+	if value.MaxLockdownOperations < 1 || value.MaxLockdownOperations > 1000 || value.MaxLockdownDestructiveOperations < 1 || value.MaxLockdownDestructiveOperations > value.MaxLockdownOperations {
+		return errors.New("invalid lockdown operation caps")
+	}
+	if value.QuarantineRoleID != "" && !validSnowflake(value.QuarantineRoleID) {
+		return errors.New("moderation quarantineRoleId is invalid")
+	}
+	if len(value.ProtectedOperatorRoleIDs) > 20 || len(value.ReasonCodes) > 128 || len(value.EscalationRules) > 100 {
+		return errors.New("moderation lists exceed configured limits")
+	}
+	seenReasons := map[string]bool{}
+	for _, reason := range value.ReasonCodes {
+		if !validReasonCode(reason) || seenReasons[reason] {
+			return errors.New("invalid or duplicate moderation reason code")
+		}
+		seenReasons[reason] = true
+	}
+	seenRoles := map[string]bool{}
+	for _, roleID := range value.ProtectedOperatorRoleIDs {
+		if !validSnowflake(roleID) || seenRoles[roleID] {
+			return errors.New("invalid or duplicate protected operator role")
+		}
+		seenRoles[roleID] = true
+	}
+	if value.QuarantineRoleID != "" && seenRoles[value.QuarantineRoleID] {
+		return errors.New("quarantine role cannot be a protected operator role")
+	}
+	seenRules := map[string]bool{}
+	for i, rule := range value.EscalationRules {
+		if !boundedIdentifier(rule.ID, 64) || seenRules[rule.ID] || rule.Priority < 0 || rule.Priority > 10000 || rule.MinimumCount < 1 || rule.MinimumCount > value.MaxActionsPerSubjectWindow || rule.MaximumApplications < 1 || rule.MaximumApplications > value.MaxActionsPerSubjectWindow || len(rule.EligiblePriorKinds) == 0 || len(rule.EligiblePriorKinds) > 12 || !validModerationAction(rule.Action) {
+			return errors.New("invalid or duplicate moderation escalation rule")
+		}
+		seenRules[rule.ID] = true
+		lookback, e1 := time.ParseDuration(rule.Lookback)
+		duration, e2 := optionalDuration(rule.Duration)
+		deleteWindow, e3 := optionalDuration(rule.DeleteWindow)
+		if e1 != nil || lookback < time.Minute || lookback > 365*24*time.Hour || e2 != nil || duration < 0 || duration > 28*24*time.Hour || e3 != nil || deleteWindow < 0 || deleteWindow > 14*24*time.Hour {
+			return errors.New("invalid moderation escalation duration")
+		}
+		if rule.Action == "timeout" && duration <= 0 {
+			return errors.New("timeout escalation requires duration")
+		}
+		seenKinds := map[string]bool{}
+		for _, kind := range rule.EligiblePriorKinds {
+			if !validModerationAction(kind) || seenKinds[kind] {
+				return errors.New("invalid or duplicate escalation prior action")
+			}
+			seenKinds[kind] = true
+		}
+		for _, prior := range value.EscalationRules[:i] {
+			if prior.Priority == rule.Priority && stringSetsOverlap(prior.EligiblePriorKinds, rule.EligiblePriorKinds) {
+				return errors.New("equal-priority escalation rules must not overlap")
+			}
+		}
+	}
+	return nil
+}
+
+func optionalDuration(value string) (time.Duration, error) {
+	if value == "" {
+		return 0, nil
+	}
+	return time.ParseDuration(value)
+}
+
+func validReasonCode(value string) bool {
+	if value == "" || len(value) > 64 {
+		return false
+	}
+	for _, r := range value {
+		if !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && r != '_' && r != '-' && r != '.' {
+			return false
+		}
+	}
+	return true
+}
+
+func validModerationAction(value string) bool {
+	switch value {
+	case "warn", "timeout", "timeout_remove", "kick", "ban", "unban", "message_delete", "bulk_message_delete", "quarantine_add", "quarantine_remove", "invite_create", "invite_revoke":
+		return true
+	default:
+		return false
+	}
+}
+
+func stringSetsOverlap(left, right []string) bool {
+	set := make(map[string]struct{}, len(left))
+	for _, value := range left {
+		set[value] = struct{}{}
+	}
+	for _, value := range right {
+		if _, ok := set[value]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func validateSecuritySettings(approvals Approvals, audit Audit, alerts SecurityAlerts) error {
 	ttl, err := time.ParseDuration(approvals.MaxTTL)
 	if err != nil || ttl <= 0 || ttl > 24*time.Hour {
@@ -298,8 +412,8 @@ func validateSecuritySettings(approvals Approvals, audit Audit, alerts SecurityA
 	if audit.RetentionDays < 1 || audit.RetentionDays > 3650 || audit.MaxBytes < 64<<10 || audit.MaxBytes > 10<<30 {
 		return errors.New("invalid audit retention settings")
 	}
-	thresholds := []int{alerts.DenialThreshold, alerts.DestructiveThreshold, alerts.SignatureFailureThreshold, alerts.AckDeadlineMissThreshold, alerts.CallbackFailureThreshold, alerts.HandlerSaturationThreshold}
-	windows := []string{alerts.DenialWindow, alerts.DestructiveWindow, alerts.SignatureFailureWindow, alerts.AckDeadlineMissWindow, alerts.CallbackFailureWindow, alerts.HandlerSaturationWindow}
+	thresholds := []int{alerts.DenialThreshold, alerts.DestructiveThreshold, alerts.SignatureFailureThreshold, alerts.AckDeadlineMissThreshold, alerts.CallbackFailureThreshold, alerts.HandlerSaturationThreshold, alerts.ModerationDestructiveThreshold, alerts.LockdownPartialFailureThreshold}
+	windows := []string{alerts.DenialWindow, alerts.DestructiveWindow, alerts.SignatureFailureWindow, alerts.AckDeadlineMissWindow, alerts.CallbackFailureWindow, alerts.HandlerSaturationWindow, alerts.ModerationDestructiveWindow, alerts.LockdownPartialFailureWindow}
 	for i, threshold := range thresholds {
 		window, err := time.ParseDuration(windows[i])
 		if err != nil || threshold <= 0 || threshold > 10000 || window < time.Second || window > 24*time.Hour {

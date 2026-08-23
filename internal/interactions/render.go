@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ken-kai/discord-control-experiments/internal/application"
+	"github.com/ken-kai/discord-control-experiments/internal/domain"
 )
 
 type Renderer struct{ callbacks *CallbackClient }
@@ -41,6 +42,43 @@ func (r *Renderer) Render(result DeferredResult) CallbackData {
 			decision = "allowed"
 		}
 		return CallbackData{Content: bounded(fmt.Sprintf("Capability `%s`: %s in `%s` mode.", value.Capability, decision, value.Mode), 500), Flags: EphemeralFlag}
+	case "moderation_case":
+		value, ok := result.Value.(domain.Case)
+		if !ok {
+			return unavailable
+		}
+		return CallbackData{Content: bounded(fmt.Sprintf("Case `%s`: %s (%s).", value.ID, value.Status, value.ReasonCode), 700), Flags: EphemeralFlag}
+	case "moderation_action":
+		value, ok := result.Value.(application.ModerationActionResult)
+		if !ok {
+			return unavailable
+		}
+		return CallbackData{Content: bounded(fmt.Sprintf("Action `%s`: %s.", value.Action.Kind, value.Action.Status), 700), Flags: EphemeralFlag}
+	case "escalation":
+		value, ok := result.Value.(application.EscalationResult)
+		if !ok {
+			return unavailable
+		}
+		if value.Recommendation.RuleID == "" {
+			return CallbackData{Content: "No escalation rule currently matches.", Flags: EphemeralFlag}
+		}
+		return CallbackData{Content: bounded(fmt.Sprintf("Recommendation: `%s` via rule `%s` (policy `%s`).", value.Recommendation.Action, value.Recommendation.RuleID, value.Recommendation.PolicyVersion), 900), Flags: EphemeralFlag}
+	case "lockdown_plan":
+		value, ok := result.Value.(map[string]any)
+		if !ok {
+			return unavailable
+		}
+		plan, ok := value["plan"].(domain.LockdownPlan)
+		if !ok {
+			return unavailable
+		}
+		return CallbackData{Content: bounded(fmt.Sprintf("Lockdown plan `%s` has %d operations. Recovery is persisted.", plan.Hash, len(plan.Operations)), 1000), Flags: EphemeralFlag}
+	case "lockdown_apply":
+		value, ok := result.Value.(application.LockdownApplyResult)
+		if !ok {
+			return unavailable
+		}
+		return CallbackData{Content: bounded(fmt.Sprintf("Lockdown `%s`: %d completed, %d pending.", value.PlanHash, len(value.Completed), len(value.Pending)), 1000), Flags: EphemeralFlag}
 	case "jobs_list":
 		value, ok := result.Value.(JobListResult)
 		if !ok {

@@ -59,9 +59,10 @@ type Options struct {
 }
 
 type RegisteredTool struct {
-	Contract application.CommandContract
-	Input    ToolSchema
-	Output   ToolSchema
+	Contract     application.CommandContract
+	LocalHandler string
+	Input        ToolSchema
+	Output       ToolSchema
 }
 
 type Server struct {
@@ -172,6 +173,25 @@ func buildInventory(ctx context.Context, options Options) ([]RegisteredTool, err
 		}
 		inventory = append(inventory, RegisteredTool{Contract: contract, Input: input, Output: output})
 	}
+	if allowedSets[application.ToolsetModeration] {
+		for _, local := range localModerationTools() {
+			if options.ReadOnly && local.contract.Spec.MutationExposed {
+				continue
+			}
+			decision, policyErr := options.Policy.Decide(ctx, domain.PolicyRequest{Principal: fixedPrincipal, GuildID: options.GuildID, Operation: domain.OperationName(local.contract.Name), Capability: local.contract.Spec.Capability, Resources: []domain.ResourceRef{{Kind: domain.ResourceModerationCase, ID: string(options.GuildID)}}, Mode: options.Mode, DestructiveClass: local.contract.Spec.DestructiveClass, CorrelationID: correlation})
+			if policyErr != nil {
+				return nil, errors.New("MCP moderation policy discovery failed")
+			}
+			if !decision.Allowed {
+				continue
+			}
+			input, output, schemaErr := GenerateSchemas(local.contract)
+			if schemaErr != nil {
+				return nil, schemaErr
+			}
+			inventory = append(inventory, RegisteredTool{Contract: local.contract, LocalHandler: local.handler, Input: input, Output: output})
+		}
+	}
 	sort.Slice(inventory, func(i, j int) bool { return inventory[i].Contract.Name < inventory[j].Contract.Name })
 	return inventory, nil
 }
@@ -210,6 +230,9 @@ func (s *Server) handler(tool *RegisteredTool) sdk.ToolHandler {
 		case <-ctx.Done():
 			resultClass = "queue_rejected"
 			return s.errorResult(tool, "limit_exceeded", "tool concurrency queue timed out", correlation), nil
+		}
+		if tool.LocalHandler != "" {
+			return s.handleLocalModerationTool(ctx, request, tool, correlation)
 		}
 		command, err := application.NewContractCommand(tool.Contract.Name, s.options.GuildID)
 		if err != nil {

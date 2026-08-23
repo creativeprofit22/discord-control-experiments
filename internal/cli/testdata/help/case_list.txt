@@ -1,0 +1,3 @@
+Usage: discord-control case list --guild VALUE --input VALUE
+
+List moderation cases

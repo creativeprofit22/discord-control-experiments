@@ -67,6 +67,7 @@ func buildCommandRegistry() map[string]CommandSpec {
 		m[name] = CommandSpec{Name: name, Method: method, RouteTemplate: route, MajorResource: major, Ownership: ownership, Mutation: mutation, Retry: retry, Idempotency: idem, RequestCodec: "json", ResponseCodec: "json", Reconciliation: reconciliation, Capability: capabilityFor(name, mutation), MutationExposed: mutation != MutationRead, DestructiveClass: destructiveForName(name), Sensitive: true, ResourceExtractor: extractCommandResources, IntentSanitizer: sanitizeCommandIntent}
 	}
 	g := OwnershipGuildQualified
+	add("get_current_user", "GET", "/users/@me", "guild.id", g, MutationRead, RetrySafe, IdempotencyNone, "none")
 	add("inspect_guild", "GET", "/guilds/{guild.id}", "guild.id", g, MutationRead, RetrySafe, IdempotencyNone, "none")
 	add("list_guild_channels", "GET", "/guilds/{guild.id}/channels", "guild.id", g, MutationRead, RetrySafe, IdempotencyNone, "none")
 	add("get_channel", "GET", "/channels/{channel.id}", "channel.id", OwnershipChannel, MutationRead, RetrySafe, IdempotencyNone, "none")
@@ -363,6 +364,8 @@ func kindForTypeName(name string) (domain.ResourceKind, bool) {
 		return domain.ResourceApplicationCommand, true
 	case "ScheduledEventID":
 		return domain.ResourceScheduledEvent, true
+	case "AutoModerationRuleID":
+		return domain.ResourceAutoModerationRule, true
 	default:
 		return "", false
 	}

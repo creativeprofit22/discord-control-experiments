@@ -65,15 +65,29 @@ func MigrateDesired(data []byte) ([]byte, error) {
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		return nil, fmt.Errorf("decode schema version: %w", err)
 	}
-	if envelope.SchemaVersion != domain.DeclarativeSchemaV1 {
+	switch envelope.SchemaVersion {
+	case domain.DeclarativeSchemaV2:
+		return append([]byte(nil), data...), nil
+	case domain.DeclarativeSchemaV1:
+		var document map[string]any
+		if err := json.Unmarshal(data, &document); err != nil {
+			return nil, fmt.Errorf("decode v1 desired document: %w", err)
+		}
+		document["schema_version"] = domain.DeclarativeSchemaV2
+		document["auto_moderation_rules"] = []any{}
+		migrated, err := json.Marshal(document)
+		if err != nil {
+			return nil, fmt.Errorf("migrate v1 desired document: %w", err)
+		}
+		return migrated, nil
+	default:
 		return nil, fmt.Errorf("unsupported schema_version %q", envelope.SchemaVersion)
 	}
-	return append([]byte(nil), data...), nil
 }
 
 func ValidateDesired(desired domain.DesiredGuild) error {
-	if desired.SchemaVersion != domain.DeclarativeSchemaV1 {
-		return fmt.Errorf("schema_version must be %q", domain.DeclarativeSchemaV1)
+	if desired.SchemaVersion != domain.DeclarativeSchemaV2 {
+		return fmt.Errorf("schema_version must be %q", domain.DeclarativeSchemaV2)
 	}
 	if desired.GuildID == "" {
 		return errors.New("guild_id is required")
@@ -84,7 +98,7 @@ func ValidateDesired(desired domain.DesiredGuild) error {
 	counts := []struct {
 		name string
 		n    int
-	}{{"categories", len(desired.Categories)}, {"channels", len(desired.Channels)}, {"roles", len(desired.Roles)}, {"webhooks", len(desired.Webhooks)}, {"application_commands", len(desired.ApplicationCommands)}}
+	}{{"categories", len(desired.Categories)}, {"channels", len(desired.Channels)}, {"roles", len(desired.Roles)}, {"webhooks", len(desired.Webhooks)}, {"application_commands", len(desired.ApplicationCommands)}, {"auto_moderation_rules", len(desired.AutoModerationRules)}}
 	for _, count := range counts {
 		if count.n > MaxResourcesPerKind {
 			return fmt.Errorf("%s exceeds limit %d", count.name, MaxResourcesPerKind)
@@ -186,6 +200,28 @@ func ValidateDesired(desired domain.DesiredGuild) error {
 			}
 		}
 	}
+	triggerCounts := map[domain.AutoModerationTriggerType]int{}
+	for _, rule := range desired.AutoModerationRules {
+		if err := validateMode(rule.Mode); err != nil {
+			return err
+		}
+		if err := add(domain.ResourceAutoModerationRule, rule.LogicalID); err != nil {
+			return err
+		}
+		if err := domain.ValidateDesiredAutoModerationRule(rule); err != nil {
+			return fmt.Errorf("AutoMod rule %s: %w", rule.LogicalID, err)
+		}
+		triggerCounts[rule.TriggerType]++
+	}
+	for trigger, count := range triggerCounts {
+		limit := 1
+		if trigger == domain.AutoModerationTriggerKeyword {
+			limit = 6
+		}
+		if count > limit {
+			return fmt.Errorf("AutoMod trigger %d exceeds per-guild rule limit %d", trigger, limit)
+		}
+	}
 	if desired.Onboarding != nil {
 		if len(desired.Onboarding.Prompts) > MaxOnboardingPrompts {
 			return errors.New("onboarding prompts exceed limit")
@@ -224,6 +260,25 @@ func validateReferences(desired domain.DesiredGuild, known map[domain.StableReso
 	for _, webhook := range desired.Webhooks {
 		if err := check("webhook "+webhook.LogicalID, webhook.Channel); err != nil {
 			return err
+		}
+	}
+	for _, rule := range desired.AutoModerationRules {
+		for _, ref := range rule.ExemptRoles {
+			if err := check("AutoMod rule "+rule.LogicalID, ref); err != nil {
+				return err
+			}
+		}
+		for _, ref := range rule.ExemptChannels {
+			if err := check("AutoMod rule "+rule.LogicalID, ref); err != nil {
+				return err
+			}
+		}
+		for _, action := range rule.Actions {
+			if action.AlertChannel != nil {
+				if err := check("AutoMod rule "+rule.LogicalID, *action.AlertChannel); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	if desired.Onboarding != nil {

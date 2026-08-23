@@ -1,0 +1,3 @@
+Usage: discord-control lockdown recover --guild VALUE --plan-hash VALUE --approval-id VALUE
+
+Apply exact reviewed lockdown recovery

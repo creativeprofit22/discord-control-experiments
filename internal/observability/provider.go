@@ -65,6 +65,13 @@ type Provider struct {
 	reconciliationPartial         metric.Int64Counter
 	reconciliationResumes         metric.Int64Counter
 	reconciliationOutcomes        metric.Int64Counter
+	moderationActions             metric.Int64Counter
+	moderationDuration            metric.Float64Histogram
+	moderationHierarchyFailures   metric.Int64Counter
+	autoModerationDrift           metric.Int64Counter
+	escalationOutcomes            metric.Int64Counter
+	lockdownEvents                metric.Int64Counter
+	lockdownOperationCount        metric.Int64Histogram
 	interactionVerification       metric.Int64Counter
 	interactionAckDuration        metric.Float64Histogram
 	interactionDeadlineMisses     metric.Int64Counter
@@ -192,6 +199,34 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	moderationActions, err := meter.Int64Counter("discord.moderation.action.count")
+	if err != nil {
+		return nil, err
+	}
+	moderationDuration, err := meter.Float64Histogram("discord.moderation.action.duration", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	moderationHierarchyFailures, err := meter.Int64Counter("discord.moderation.hierarchy_failure.count")
+	if err != nil {
+		return nil, err
+	}
+	autoModerationDrift, err := meter.Int64Counter("discord.automod.drift.count")
+	if err != nil {
+		return nil, err
+	}
+	escalationOutcomes, err := meter.Int64Counter("discord.moderation.escalation.count")
+	if err != nil {
+		return nil, err
+	}
+	lockdownEvents, err := meter.Int64Counter("discord.moderation.lockdown.count")
+	if err != nil {
+		return nil, err
+	}
+	lockdownOperationCount, err := meter.Int64Histogram("discord.moderation.lockdown.operation_count")
+	if err != nil {
+		return nil, err
+	}
 	interactionVerification, err := meter.Int64Counter("discord.interaction.signature.count")
 	if err != nil {
 		return nil, err
@@ -249,7 +284,7 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 		return nil, err
 	}
 	monitor := newSecurityMonitor(options.Security, logger)
-	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, interactionVerification: interactionVerification, interactionAckDuration: interactionAckDuration, interactionDeadlineMisses: interactionDeadlineMisses, interactionDuplicates: interactionDuplicates, interactionDeferred: interactionDeferred, interactionCallbacks: interactionCallbacks, interactionCallbackDuration: interactionCallbackDuration, interactionApprovals: interactionApprovals, interactionSaturation: interactionSaturation, interactionQueueDepth: interactionQueueDepth, interactionQueueDepthValue: interactionQueueDepthValue, interactionHandlerActive: interactionHandlerActive, interactionHandlerActiveValue: interactionHandlerActiveValue, interactionRegistrations: interactionRegistrations, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
+	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, moderationActions: moderationActions, moderationDuration: moderationDuration, moderationHierarchyFailures: moderationHierarchyFailures, autoModerationDrift: autoModerationDrift, escalationOutcomes: escalationOutcomes, lockdownEvents: lockdownEvents, lockdownOperationCount: lockdownOperationCount, interactionVerification: interactionVerification, interactionAckDuration: interactionAckDuration, interactionDeadlineMisses: interactionDeadlineMisses, interactionDuplicates: interactionDuplicates, interactionDeferred: interactionDeferred, interactionCallbacks: interactionCallbacks, interactionCallbackDuration: interactionCallbackDuration, interactionApprovals: interactionApprovals, interactionSaturation: interactionSaturation, interactionQueueDepth: interactionQueueDepth, interactionQueueDepthValue: interactionQueueDepthValue, interactionHandlerActive: interactionHandlerActive, interactionHandlerActiveValue: interactionHandlerActiveValue, interactionRegistrations: interactionRegistrations, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
 	options.Redactor.SetInterventionHook(func() {
 		provider.RecordSecurityEvent(context.Background(), domain.SecurityEvent{Kind: "redaction_intervention", OccurredAt: time.Now()})
 	})
@@ -421,6 +456,9 @@ func (p *Provider) ObserveReconciliation(ctx context.Context, observation applic
 	}
 	if observation.ManagedDrift > 0 {
 		p.reconciliationDrift.Add(ctx, int64(observation.ManagedDrift), metricAttributes)
+		if observation.ResourceKind == domain.ResourceAutoModerationRule {
+			p.autoModerationDrift.Add(ctx, int64(observation.ManagedDrift), metric.WithAttributes(attribute.String(FieldOutcome, observation.Outcome)))
+		}
 	}
 	if observation.UnmanagedConflicts > 0 {
 		p.reconciliationConflicts.Add(ctx, int64(observation.UnmanagedConflicts), metricAttributes)
@@ -441,6 +479,36 @@ func (p *Provider) ObserveReconciliation(ctx context.Context, observation applic
 		p.reconciliationOutcomes.Add(ctx, 1, metricAttributes)
 	}
 	p.Logger.InfoContext(ctx, "reconciliation event", FieldCorrelationID, observation.CorrelationID, FieldPlanHashPrefix, observation.PlanHashPrefix, FieldRunID, observation.RunID, FieldStepID, observation.OperationID, FieldResourceKind, observation.ResourceKind, FieldRisk, observation.Risk, FieldOutcome, observation.Outcome, FieldRetryCount, observation.Retries)
+}
+
+func (p *Provider) ObserveModeration(ctx context.Context, observation application.ModerationObservation) {
+	if p == nil {
+		return
+	}
+	attrs := metric.WithAttributes(attribute.String("moderation.action.kind", string(observation.ActionKind)), attribute.String("moderation.outcome", observation.Outcome), attribute.String("moderation.reason_class", observation.Reason), attribute.String("moderation.policy.version", observation.PolicyVersion))
+	if observation.ActionKind != "" {
+		p.moderationActions.Add(ctx, 1, attrs)
+	}
+	if observation.Latency > 0 {
+		p.moderationDuration.Record(ctx, float64(observation.Latency.Microseconds())/1000, attrs)
+	}
+	if observation.Reason == "hierarchy" {
+		p.moderationHierarchyFailures.Add(ctx, 1, attrs)
+	}
+	if observation.ActionKind == "" {
+		p.escalationOutcomes.Add(ctx, 1, attrs)
+	}
+}
+
+func (p *Provider) ObserveLockdown(ctx context.Context, observation application.LockdownObservation) {
+	if p == nil {
+		return
+	}
+	attrs := metric.WithAttributes(attribute.String("lockdown.operation", observation.Operation), attribute.String("lockdown.outcome", observation.Outcome))
+	p.lockdownEvents.Add(ctx, 1, attrs)
+	if observation.OperationCount > 0 {
+		p.lockdownOperationCount.Record(ctx, int64(observation.OperationCount), attrs)
+	}
 }
 
 func (p *Provider) Shutdown(ctx context.Context) error {

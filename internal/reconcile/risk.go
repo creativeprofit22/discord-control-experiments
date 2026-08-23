@@ -9,7 +9,7 @@ func ClassifyRisk(operation domain.PlanOperation) domain.RiskClass {
 	case domain.OperationNoop:
 		return domain.RiskReadOnly
 	case domain.OperationCreate:
-		if operation.Resource.Kind == domain.ResourcePermissionOverwrite {
+		if operation.Resource.Kind == domain.ResourcePermissionOverwrite || operation.Resource.Kind == domain.ResourceAutoModerationRule {
 			return domain.RiskPermissionSensitive
 		}
 		return domain.RiskAdditive
@@ -20,6 +20,9 @@ func ClassifyRisk(operation domain.PlanOperation) domain.RiskClass {
 	case domain.OperationDelete:
 		return domain.RiskDestructive
 	case domain.OperationUpdate, domain.OperationMove, domain.OperationReorder:
+		if operation.Resource.Kind == domain.ResourceAutoModerationRule {
+			return domain.RiskPermissionSensitive
+		}
 		return domain.RiskMutating
 	default:
 		return domain.RiskMutating

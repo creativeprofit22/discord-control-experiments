@@ -2,6 +2,22 @@ package cli
 
 import "testing"
 
+func TestParseModerationAndLockdownCommands(t *testing.T) {
+	tests := [][]string{{"case", "warn", "--config", "config.json", "--guild", "1", "--input", "action.json"}, {"lockdown", "apply", "--config", "config.json", "--guild", "1", "--plan-hash", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "--approval-id", "approved"}}
+	for _, args := range tests {
+		command, err := Parse(args)
+		if err != nil {
+			t.Fatalf("Parse(%v): %v", args, err)
+		}
+		if command.GuildID != "1" {
+			t.Fatalf("guild=%s", command.GuildID)
+		}
+		if command.Path == "lockdown apply" && (command.PlanHash == "" || command.ApprovalID == "") {
+			t.Fatalf("lockdown handoff=%#v", command)
+		}
+	}
+}
+
 func TestParseReconciliationCommands(t *testing.T) {
 	tests := []struct {
 		args        []string

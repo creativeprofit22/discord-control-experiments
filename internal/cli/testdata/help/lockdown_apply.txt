@@ -1,0 +1,3 @@
+Usage: discord-control lockdown apply --guild VALUE --plan-hash VALUE --approval-id VALUE
+
+Apply a reviewed lockdown plan

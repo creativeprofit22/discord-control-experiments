@@ -180,6 +180,25 @@ func TestPlanGrantBindsGuildKindHashAndMismatchDoesNotConsume(t *testing.T) {
 	}
 }
 
+func TestStoreConsumesSingleUseLockdownPlan(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	store, err := NewStoreWithDependencies(time.Minute, func() time.Time { return now }, zeroReader{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	grant, err := store.Issue(context.Background(), domain.ApprovalGrant{ActorID: "actor", GuildID: "123", ScopeKind: domain.ApprovalScopeLockdownPlan, ScopeHash: hash, ApproverID: "reviewer", IssuedAt: now, ExpiresAt: now.Add(time.Minute)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ConsumeLockdownPlan(context.Background(), grant.ID, "actor", "123", hash, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ConsumeLockdownPlan(context.Background(), grant.ID, "actor", "123", hash, now); !errors.Is(err, ErrConsumed) {
+		t.Fatalf("second consume = %v", err)
+	}
+}
+
 func TestApprovalConcurrentConsumeIsAtomic(t *testing.T) {
 	now := time.Now().UTC()
 	store, _ := NewStoreWithDependencies(time.Hour, func() time.Time { return now }, zeroReader{})

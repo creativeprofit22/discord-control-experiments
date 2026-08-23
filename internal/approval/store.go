@@ -82,7 +82,7 @@ func (s *Store) Issue(_ context.Context, requested domain.ApprovalGrant) (domain
 	if requested.ScopeKind == "" {
 		requested.ScopeKind = domain.ApprovalScopeOperation
 	}
-	if requested.ID != "" || requested.ActorID == "" || requested.GuildID == "" || requested.ApproverID == "" || len(requested.ScopeHash) != 64 || requested.ExpiresAt.IsZero() || (requested.ScopeKind != domain.ApprovalScopeOperation && requested.ScopeKind != domain.ApprovalScopeReconciliationPlan) {
+	if requested.ID != "" || requested.ActorID == "" || requested.GuildID == "" || requested.ApproverID == "" || len(requested.ScopeHash) != 64 || requested.ExpiresAt.IsZero() || (requested.ScopeKind != domain.ApprovalScopeOperation && requested.ScopeKind != domain.ApprovalScopeReconciliationPlan && requested.ScopeKind != domain.ApprovalScopeLockdownPlan) {
 		return domain.ApprovalGrant{}, ErrInvalidGrant
 	}
 	if issuedAt.IsZero() {
@@ -118,6 +118,10 @@ func (s *Store) Issue(_ context.Context, requested domain.ApprovalGrant) (domain
 
 func (s *Store) ConsumeOperation(ctx context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, operationHash string, now time.Time) (domain.ApprovalGrant, error) {
 	return s.consume(ctx, id, actor, guild, domain.ApprovalScopeOperation, operationHash, now)
+}
+
+func (s *Store) ConsumeLockdownPlan(ctx context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, planHash string, now time.Time) (domain.ApprovalGrant, error) {
+	return s.consume(ctx, id, actor, guild, domain.ApprovalScopeLockdownPlan, planHash, now)
 }
 
 func (s *Store) ConsumeReconciliationPlan(ctx context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, planHash string, now time.Time) (domain.ApprovalGrant, error) {

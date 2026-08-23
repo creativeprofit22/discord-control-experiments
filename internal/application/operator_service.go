@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"sort"
@@ -14,6 +15,7 @@ type OperatorRequest struct {
 	Invocation Invocation
 	Command    domain.Command
 	Values     map[string]string
+	Payload    json.RawMessage
 }
 
 type OperatorResult struct {
@@ -148,6 +150,7 @@ func BindOperatorInvocationFor(command domain.Command, correlationID domain.Corr
 }
 
 var operatorCommandTypes = map[string]reflect.Type{
+	"get_current_user":    reflect.TypeOf(domain.GetCurrentUser{}),
 	"inspect_guild":       reflect.TypeOf(domain.InspectGuild{}),
 	"list_guild_channels": reflect.TypeOf(domain.ListGuildChannels{}), "get_channel": reflect.TypeOf(domain.GetChannel{}), "create_channel": reflect.TypeOf(domain.CreateChannel{}), "modify_channel": reflect.TypeOf(domain.ModifyChannel{}), "delete_channel": reflect.TypeOf(domain.DeleteChannel{}), "reorder_channels": reflect.TypeOf(domain.ReorderChannels{}),
 	"list_guild_roles": reflect.TypeOf(domain.ListGuildRoles{}), "create_role": reflect.TypeOf(domain.CreateRole{}), "modify_role": reflect.TypeOf(domain.ModifyRole{}), "delete_role": reflect.TypeOf(domain.DeleteRole{}), "reorder_roles": reflect.TypeOf(domain.ReorderRoles{}),

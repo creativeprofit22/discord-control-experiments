@@ -1,6 +1,9 @@
 package domain
 
-const DeclarativeSchemaV1 = "discord-control/v1"
+const (
+	DeclarativeSchemaV1 = "discord-control/v1"
+	DeclarativeSchemaV2 = "discord-control/v2"
+)
 
 type ManagementMode string
 
@@ -32,6 +35,7 @@ type DesiredGuild struct {
 	Roles               []DesiredRole               `json:"roles"`
 	Webhooks            []DesiredWebhook            `json:"webhooks"`
 	ApplicationCommands []DesiredApplicationCommand `json:"application_commands"`
+	AutoModerationRules []DesiredAutoModerationRule `json:"auto_moderation_rules,omitempty"`
 	Onboarding          *DesiredOnboarding          `json:"onboarding,omitempty"`
 }
 
@@ -102,6 +106,27 @@ type DesiredWebhook struct {
 	Channel   StableResourceRef `json:"channel"`
 	Mode      ManagementMode    `json:"mode,omitempty"`
 	Protected bool              `json:"protected,omitempty"`
+}
+
+type DesiredAutoModerationRule struct {
+	LogicalID       string                        `json:"logical_id"`
+	Mode            ManagementMode                `json:"mode,omitempty"`
+	Name            string                        `json:"name"`
+	EventType       AutoModerationEventType       `json:"event_type"`
+	TriggerType     AutoModerationTriggerType     `json:"trigger_type"`
+	TriggerMetadata AutoModerationTriggerMetadata `json:"trigger_metadata"`
+	Actions         []DesiredAutoModerationAction `json:"actions"`
+	Enabled         bool                          `json:"enabled"`
+	ExemptRoles     []StableResourceRef           `json:"exempt_roles,omitempty"`
+	ExemptChannels  []StableResourceRef           `json:"exempt_channels,omitempty"`
+	Protected       bool                          `json:"protected,omitempty"`
+}
+
+type DesiredAutoModerationAction struct {
+	Type            AutoModerationActionType `json:"type"`
+	AlertChannel    *StableResourceRef       `json:"alert_channel,omitempty"`
+	DurationSeconds *int                     `json:"duration_seconds,omitempty"`
+	CustomMessage   *string                  `json:"custom_message,omitempty"`
 }
 
 type DesiredApplicationCommand struct {

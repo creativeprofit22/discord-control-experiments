@@ -68,7 +68,7 @@ func TestRepresentativeRoutes(t *testing.T) {
 	tests := []struct {
 		command      domain.Command
 		method, path string
-	}{{domain.ListGuildChannels{CommandContext: g}, "GET", "/guilds/1/channels"}, {domain.CreateRole{CommandContext: g}, "POST", "/guilds/1/roles"}, {domain.GetMember{CommandContext: g, UserID: "2"}, "GET", "/guilds/1/members/2"}, {domain.GetMessage{CommandContext: g, ChannelID: "3", MessageID: "4"}, "GET", "/channels/3/messages/4"}, {domain.GetWebhook{CommandContext: g, WebhookID: "5"}, "GET", "/webhooks/5"}, {domain.ListGuildApplicationCommands{CommandContext: g, ApplicationID: "6"}, "GET", "/applications/6/guilds/1/commands"}, {domain.GetInvite{CommandContext: g, Code: "abc"}, "GET", "/invites/abc"}, {domain.GetScheduledEvent{CommandContext: g, ScheduledEventID: "7"}, "GET", "/guilds/1/scheduled-events/7"}}
+	}{{domain.GetCurrentUser{CommandContext: g}, "GET", "/users/@me"}, {domain.ListGuildChannels{CommandContext: g}, "GET", "/guilds/1/channels"}, {domain.CreateRole{CommandContext: g}, "POST", "/guilds/1/roles"}, {domain.GetMember{CommandContext: g, UserID: "2"}, "GET", "/guilds/1/members/2"}, {domain.GetMessage{CommandContext: g, ChannelID: "3", MessageID: "4"}, "GET", "/channels/3/messages/4"}, {domain.GetWebhook{CommandContext: g, WebhookID: "5"}, "GET", "/webhooks/5"}, {domain.ListGuildApplicationCommands{CommandContext: g, ApplicationID: "6"}, "GET", "/applications/6/guilds/1/commands"}, {domain.GetInvite{CommandContext: g, Code: "abc"}, "GET", "/invites/abc"}, {domain.GetScheduledEvent{CommandContext: g, ScheduledEventID: "7"}, "GET", "/guilds/1/scheduled-events/7"}}
 	for _, test := range tests {
 		route, err := resolveRoute(test.command)
 		if err != nil {

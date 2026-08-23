@@ -73,6 +73,33 @@ func (p Paths) JournalPath(guildID domain.GuildID, runID domain.RunID) (string, 
 	}
 	return filepath.Join(directory, "journal-"+string(runID)+".jsonl"), nil
 }
+func (p Paths) ModerationJournalPath(guildID domain.GuildID) (string, error) {
+	directory, err := p.GuildDirectory(guildID)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(directory, "moderation.jsonl"), nil
+}
+func (p Paths) LockdownPlanPath(guildID domain.GuildID, hash domain.LockdownPlanHash) (string, error) {
+	if !safeComponent(string(hash)) {
+		return "", fmt.Errorf("invalid lockdown plan hash")
+	}
+	directory, err := p.GuildDirectory(guildID)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(directory, "lockdown-plan-"+string(hash)+".json"), nil
+}
+func (p Paths) LockdownJournalPath(guildID domain.GuildID, hash domain.LockdownPlanHash) (string, error) {
+	if !safeComponent(string(hash)) {
+		return "", fmt.Errorf("invalid lockdown plan hash")
+	}
+	directory, err := p.GuildDirectory(guildID)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(directory, "lockdown-journal-"+string(hash)+".jsonl"), nil
+}
 func (p Paths) BindingsPath(guildID domain.GuildID) (string, error) {
 	directory, err := p.GuildDirectory(guildID)
 	if err != nil {

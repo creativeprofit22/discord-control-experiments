@@ -2,6 +2,18 @@
 
 Generated from `internal/cli` definitions. Do not edit by hand.
 
+## `appeal export`
+
+Export subject-visible appeal data
+
+- Handler: `moderation.appeal.export`
+- Output kind: `AppealExport`
+- Timeout: `read`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
 ## `apply`
 
 Apply an approved immutable plan
@@ -74,6 +86,186 @@ modify_auto_moderation_rule
 - Flags:
   - `--guild` (string, required)
   - `--rule` (string, required)
+  - `--input` (input, required)
+
+## `case ban`
+
+moderation.ban
+
+- Handler: `moderation.ban`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case bulk-delete`
+
+moderation.bulk_message_delete
+
+- Handler: `moderation.bulk_message_delete`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case create`
+
+Create a moderation case
+
+- Handler: `moderation.case.create`
+- Output kind: `ModerationCase`
+- Timeout: `write`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case delete-message`
+
+moderation.message_delete
+
+- Handler: `moderation.message_delete`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case get`
+
+Get a moderation case
+
+- Handler: `moderation.case.get`
+- Output kind: `ModerationCase`
+- Timeout: `read`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case invite-create`
+
+moderation.invite_create
+
+- Handler: `moderation.invite_create`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case invite-revoke`
+
+moderation.invite_revoke
+
+- Handler: `moderation.invite_revoke`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case kick`
+
+moderation.kick
+
+- Handler: `moderation.kick`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case list`
+
+List moderation cases
+
+- Handler: `moderation.case.list`
+- Output kind: `ModerationCases`
+- Timeout: `read`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case quarantine-add`
+
+moderation.quarantine_add
+
+- Handler: `moderation.quarantine_add`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case quarantine-remove`
+
+moderation.quarantine_remove
+
+- Handler: `moderation.quarantine_remove`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case remove-timeout`
+
+moderation.timeout_remove
+
+- Handler: `moderation.timeout_remove`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case timeout`
+
+moderation.timeout
+
+- Handler: `moderation.timeout`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case unban`
+
+moderation.unban
+
+- Handler: `moderation.unban`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `case warn`
+
+moderation.warn
+
+- Handler: `moderation.warn`
+- Output kind: `DiscordResult`
+- Timeout: `write`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
   - `--input` (input, required)
 
 ## `channel create`
@@ -310,6 +502,42 @@ Compare current state with a saved plan
 - Flags:
   - `--plan` (path, required)
 
+## `escalation apply`
+
+Apply a reviewed escalation decision
+
+- Handler: `moderation.escalation.apply`
+- Output kind: `ModerationAction`
+- Timeout: `write`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `escalation evaluate`
+
+Evaluate deterministic escalation
+
+- Handler: `moderation.escalation.evaluate`
+- Output kind: `Escalation`
+- Timeout: `read`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `evidence attach`
+
+Attach a structured evidence locator
+
+- Handler: `moderation.evidence.attach`
+- Output kind: `ModerationEvidence`
+- Timeout: `write`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
 ## `health discord`
 
 Run a bounded read-only Discord check
@@ -345,6 +573,17 @@ Inspect a guild
 
 - Handler: `inspect_guild`
 - Output kind: `Guild`
+- Timeout: `read`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+
+## `invite list`
+
+moderation.invite_list
+
+- Handler: `moderation.invite_list`
+- Output kind: `DiscordResult`
 - Timeout: `read`
 - Mutation: `false`; destructive: `false`
 - Flags:
@@ -395,6 +634,44 @@ Resume a recoverable durable job
   - `--run` (string, required)
   - `--plan-hash` (string, required)
   - `--approval-id` (string, optional)
+
+## `lockdown apply`
+
+Apply a reviewed lockdown plan
+
+- Handler: `moderation.lockdown.apply`
+- Output kind: `LockdownApply`
+- Timeout: `workflow`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--plan-hash` (string, required)
+  - `--approval-id` (string, required)
+
+## `lockdown plan`
+
+Build and persist lockdown/recovery plans
+
+- Handler: `moderation.lockdown.plan`
+- Output kind: `LockdownPlan`
+- Timeout: `workflow`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--guild` (string, required)
+  - `--input` (input, required)
+
+## `lockdown recover`
+
+Apply exact reviewed lockdown recovery
+
+- Handler: `moderation.lockdown.recover`
+- Output kind: `LockdownRecovery`
+- Timeout: `workflow`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--guild` (string, required)
+  - `--plan-hash` (string, required)
+  - `--approval-id` (string, required)
 
 ## `member add-role`
 

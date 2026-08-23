@@ -200,6 +200,15 @@ func (s *ReconciliationService) executeCreate(ctx context.Context, plan domain.P
 		result, attempts, uncertain, err := executeReconciliationCommand(ctx, s.discord, invocation, domain.CreateGuildApplicationCommand{CommandContext: commandContext, ApplicationID: plan.Binding.ApplicationID, Command: input})
 		return operationExecution{remoteID: domain.Snowflake(result.ID), attempts: attempts, uncertain: uncertain}, err
 	}
+	if rule := operation.Payload.AutoModerationRule; rule != nil {
+		actions, roles, channels, err := resolveAutoModerationRule(*rule, bindings)
+		if err != nil {
+			return operationExecution{}, err
+		}
+		metadata, enabled := rule.TriggerMetadata, rule.Enabled
+		result, attempts, uncertain, err := executeReconciliationCommand(ctx, s.discord, invocation, domain.CreateAutoModerationRule{CommandContext: commandContext, Name: rule.Name, EventType: rule.EventType, TriggerType: rule.TriggerType, TriggerMetadata: &metadata, Actions: actions, Enabled: &enabled, ExemptRoles: roles, ExemptChannels: channels})
+		return operationExecution{remoteID: domain.Snowflake(result.ID), attempts: attempts, uncertain: uncertain}, err
+	}
 	if onboarding := operation.Payload.Onboarding; onboarding != nil {
 		command, err := onboardingCommand(commandContext, *onboarding, bindings)
 		if err != nil {
@@ -242,6 +251,15 @@ func (s *ReconciliationService) executeUpdate(ctx context.Context, plan domain.P
 		result, attempts, uncertain, err := executeReconciliationCommand(ctx, s.discord, invocation, domain.ModifyGuildApplicationCommand{CommandContext: commandContext, ApplicationID: plan.Binding.ApplicationID, ApplicationCommandID: domain.ApplicationCommandID(currentID), Command: applicationCommandInput(*command)})
 		return operationExecution{remoteID: domain.Snowflake(result.ID), attempts: attempts, uncertain: uncertain}, err
 	}
+	if rule := operation.Payload.AutoModerationRule; rule != nil {
+		actions, roles, channels, err := resolveAutoModerationRule(*rule, bindings)
+		if err != nil {
+			return operationExecution{}, err
+		}
+		name, eventType, metadata, enabled := rule.Name, rule.EventType, rule.TriggerMetadata, rule.Enabled
+		result, attempts, uncertain, err := executeReconciliationCommand(ctx, s.discord, invocation, domain.ModifyAutoModerationRule{CommandContext: commandContext, RuleID: domain.AutoModerationRuleID(currentID), Name: &name, EventType: &eventType, TriggerMetadata: &metadata, Actions: &actions, Enabled: &enabled, ExemptRoles: &roles, ExemptChannels: &channels})
+		return operationExecution{remoteID: domain.Snowflake(result.ID), attempts: attempts, uncertain: uncertain}, err
+	}
 	if onboarding := operation.Payload.Onboarding; onboarding != nil {
 		command, err := onboardingCommand(commandContext, *onboarding, bindings)
 		if err != nil {
@@ -268,6 +286,10 @@ func (s *ReconciliationService) executeDelete(ctx context.Context, plan domain.P
 		return operationExecution{remoteID: currentID, attempts: attempts, uncertain: uncertain}, err
 	case domain.ResourceApplicationCommand:
 		result, attempts, uncertain, err := executeReconciliationCommand(ctx, s.discord, invocation, domain.DeleteGuildApplicationCommand{CommandContext: commandContext, ApplicationID: plan.Binding.ApplicationID, ApplicationCommandID: domain.ApplicationCommandID(currentID)})
+		_ = result
+		return operationExecution{remoteID: currentID, attempts: attempts, uncertain: uncertain}, err
+	case domain.ResourceAutoModerationRule:
+		result, attempts, uncertain, err := executeReconciliationCommand(ctx, s.discord, invocation, domain.DeleteAutoModerationRule{CommandContext: commandContext, RuleID: domain.AutoModerationRuleID(currentID)})
 		_ = result
 		return operationExecution{remoteID: currentID, attempts: attempts, uncertain: uncertain}, err
 	default:
@@ -321,6 +343,42 @@ func forumLayout(channel *domain.DesiredChannel) *int {
 	}
 	return channel.Forum.DefaultForumLayout
 }
+func resolveAutoModerationRule(rule domain.DesiredAutoModerationRule, bindings map[domain.StableResourceRef]domain.ResourceBinding) ([]domain.AutoModerationAction, []domain.RoleID, []domain.ChannelID, error) {
+	actions := make([]domain.AutoModerationAction, 0, len(rule.Actions))
+	for _, action := range rule.Actions {
+		metadata := &domain.AutoModerationActionMetadata{DurationSeconds: action.DurationSeconds, CustomMessage: action.CustomMessage}
+		if action.AlertChannel != nil {
+			binding, ok := bindings[*action.AlertChannel]
+			if !ok {
+				return nil, nil, nil, fmt.Errorf("missing AutoMod alert channel binding")
+			}
+			channelID := domain.ChannelID(binding.RemoteID)
+			metadata.ChannelID = &channelID
+		}
+		if metadata.ChannelID == nil && metadata.DurationSeconds == nil && metadata.CustomMessage == nil {
+			metadata = nil
+		}
+		actions = append(actions, domain.AutoModerationAction{Type: action.Type, Metadata: metadata})
+	}
+	roles := make([]domain.RoleID, 0, len(rule.ExemptRoles))
+	for _, ref := range rule.ExemptRoles {
+		binding, ok := bindings[ref]
+		if !ok {
+			return nil, nil, nil, fmt.Errorf("missing AutoMod exempt role binding")
+		}
+		roles = append(roles, domain.RoleID(binding.RemoteID))
+	}
+	channels := make([]domain.ChannelID, 0, len(rule.ExemptChannels))
+	for _, ref := range rule.ExemptChannels {
+		binding, ok := bindings[ref]
+		if !ok {
+			return nil, nil, nil, fmt.Errorf("missing AutoMod exempt channel binding")
+		}
+		channels = append(channels, domain.ChannelID(binding.RemoteID))
+	}
+	return actions, roles, channels, nil
+}
+
 func applicationCommandInput(command domain.DesiredApplicationCommand) domain.ApplicationCommandInput {
 	commandType := command.Type
 	return domain.ApplicationCommandInput{Type: &commandType, Name: command.Name, Description: command.Description, Options: command.Options, DefaultMemberPermissions: command.DefaultMemberPermissions, NSFW: command.NSFW}

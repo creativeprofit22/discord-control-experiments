@@ -72,6 +72,44 @@ type ReconciliationState interface {
 	LoadPlan(domain.GuildID, domain.RunID) (domain.Plan, error)
 }
 
+type LockdownStore interface {
+	SavePlan(domain.LockdownPlan) error
+	LoadPlan(domain.GuildID, domain.LockdownPlanHash) (domain.LockdownPlan, error)
+	Append(domain.GuildID, domain.LockdownPlanHash, domain.LockdownJournalEvent) (domain.LockdownJournalEvent, error)
+	Replay(domain.GuildID, domain.LockdownPlanHash) ([]domain.LockdownJournalEvent, error)
+}
+
+type ModerationStore interface {
+	Append(domain.GuildID, domain.ModerationJournalEvent) (domain.ModerationJournalEvent, error)
+	Replay(domain.GuildID) ([]domain.ModerationJournalEvent, error)
+	Compact(domain.GuildID, time.Duration, time.Time) error
+	AppealExport(domain.GuildID, domain.UserID, time.Time) (domain.AppealExport, error)
+}
+
+type ModerationObservation struct {
+	ActionKind    domain.ActionKind
+	Outcome       string
+	Reason        string
+	PolicyVersion string
+	Latency       time.Duration
+}
+
+type LockdownObservation struct {
+	Operation      string
+	Outcome        string
+	OperationCount int
+	Partial        bool
+	Latency        time.Duration
+}
+
+type LockdownTelemetry interface {
+	ObserveLockdown(context.Context, LockdownObservation)
+}
+
+type ModerationTelemetry interface {
+	ObserveModeration(context.Context, ModerationObservation)
+}
+
 type ReconciliationObservation struct {
 	CorrelationID      domain.CorrelationID
 	PlanHashPrefix     string

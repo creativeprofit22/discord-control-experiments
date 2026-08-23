@@ -58,6 +58,7 @@ type OperationPayload struct {
 	Overwrite          *DesiredOverwrite          `json:"overwrite,omitempty"`
 	Webhook            *DesiredWebhook            `json:"webhook,omitempty"`
 	ApplicationCommand *DesiredApplicationCommand `json:"application_command,omitempty"`
+	AutoModerationRule *DesiredAutoModerationRule `json:"auto_moderation_rule,omitempty"`
 	Onboarding         *DesiredOnboarding         `json:"onboarding,omitempty"`
 	Order              []StableResourceRef        `json:"order,omitempty"`
 }

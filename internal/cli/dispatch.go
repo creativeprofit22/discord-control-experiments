@@ -56,7 +56,22 @@ func Dispatch(ctx context.Context, executor OperatorExecutor, command Command, o
 		return application.OperatorResult{}, &ParseError{Code: "service_unavailable", Detail: "operator service is unavailable"}
 	}
 	request := application.OperatorRequest{Handler: command.Handler, Invocation: options.Invocation, Values: cloneValues(command.Values)}
-	if _, isDiscord := application.LookupCommandSpec(command.Handler); isDiscord {
+	_, isDiscord := application.LookupCommandSpec(command.Handler)
+	if command.InputPath != "" && !isDiscord {
+		reader, openErr := OpenInput(options.Root, command.InputPath, options.Stdin)
+		if openErr != nil {
+			return application.OperatorResult{}, openErr
+		}
+		decodeErr := DecodeStrictJSON(reader, DefaultInputLimit, &request.Payload)
+		closeErr := reader.Close()
+		if decodeErr != nil {
+			return application.OperatorResult{}, decodeErr
+		}
+		if closeErr != nil {
+			return application.OperatorResult{}, &ParseError{Code: "read_input", Detail: "input file could not be closed"}
+		}
+	}
+	if isDiscord {
 		sealed, err := application.NewOperatorDiscordCommand(command.Handler, command.GuildID)
 		if err != nil {
 			return application.OperatorResult{}, err

@@ -1,0 +1,3 @@
+Usage: discord-control case unban --guild VALUE --input VALUE
+
+moderation.unban

@@ -50,16 +50,67 @@ type interactionJobs interface {
 }
 
 type InteractionService struct {
-	policy PolicyEvaluator
-	health *HealthService
-	jobs   interactionJobs
+	policy     PolicyEvaluator
+	health     *HealthService
+	jobs       interactionJobs
+	moderation *ModerationService
+	lockdown   *LockdownService
 }
 
-func NewInteractionService(policy PolicyEvaluator, health *HealthService, jobs interactionJobs) (*InteractionService, error) {
+func NewInteractionService(policy PolicyEvaluator, health *HealthService, jobs interactionJobs, extras ...any) (*InteractionService, error) {
 	if policy == nil || health == nil || jobs == nil {
 		return nil, errors.New("interaction service dependencies are required")
 	}
-	return &InteractionService{policy: policy, health: health, jobs: jobs}, nil
+	service := &InteractionService{policy: policy, health: health, jobs: jobs}
+	for _, extra := range extras {
+		switch value := extra.(type) {
+		case *ModerationService:
+			service.moderation = value
+		case *LockdownService:
+			service.lockdown = value
+		}
+	}
+	return service, nil
+}
+
+func (s *InteractionService) Moderate(ctx context.Context, identity InteractionIdentity, request ModerationActionRequest) (ModerationActionResult, error) {
+	if s.moderation == nil {
+		return ModerationActionResult{}, ErrInteractionNotAvailable
+	}
+	request.Invocation = interactionInvocation(identity, domain.ModeApply)
+	request.GuildID = identity.GuildID
+	return s.moderation.ExecuteAction(ctx, request)
+}
+func (s *InteractionService) ModerationCase(ctx context.Context, identity InteractionIdentity, caseID domain.CaseID) (domain.Case, error) {
+	if s.moderation == nil {
+		return domain.Case{}, ErrInteractionNotAvailable
+	}
+	return s.moderation.GetCase(ctx, CaseQuery{Invocation: interactionInvocation(identity, domain.ModeReadOnly), GuildID: identity.GuildID, CaseID: caseID})
+}
+func (s *InteractionService) Escalation(ctx context.Context, identity InteractionIdentity, subject domain.UserID) (EscalationResult, error) {
+	if s.moderation == nil {
+		return EscalationResult{}, ErrInteractionNotAvailable
+	}
+	return s.moderation.EvaluateEscalation(ctx, EscalationEvaluateRequest{Invocation: interactionInvocation(identity, domain.ModeReadOnly), GuildID: identity.GuildID, SubjectUserID: subject})
+}
+func (s *InteractionService) BuildLockdown(ctx context.Context, identity InteractionIdentity, scope domain.LockdownScope) (domain.LockdownPlan, domain.LockdownPlan, error) {
+	if s.lockdown == nil {
+		return domain.LockdownPlan{}, domain.LockdownPlan{}, ErrInteractionNotAvailable
+	}
+	return s.lockdown.BuildLockdownPlan(ctx, BuildLockdownRequest{Invocation: interactionInvocation(identity, domain.ModeApply), GuildID: identity.GuildID, Scope: scope})
+}
+func (s *InteractionService) ApplyLockdown(ctx context.Context, identity InteractionIdentity, hash domain.LockdownPlanHash, approval domain.ApprovalID, recover bool) (LockdownApplyResult, error) {
+	if s.lockdown == nil {
+		return LockdownApplyResult{}, ErrInteractionNotAvailable
+	}
+	request := ApplyLockdownRequest{Invocation: interactionInvocation(identity, domain.ModeApply), GuildID: identity.GuildID, PlanHash: hash, ApprovalID: approval}
+	if recover {
+		return s.lockdown.RecoverLockdown(ctx, request)
+	}
+	return s.lockdown.ApplyLockdown(ctx, request)
+}
+func interactionInvocation(identity InteractionIdentity, mode domain.ExecutionMode) Invocation {
+	return Invocation{Principal: interactionPrincipal(identity.UserID), RequestedMode: mode, CorrelationID: identity.CorrelationID}
 }
 
 func interactionPrincipal(userID string) domain.Principal {

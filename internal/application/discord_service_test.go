@@ -72,6 +72,9 @@ type allowTestApproval struct{}
 func (allowTestApproval) ConsumeOperation(_ context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, hash string, now time.Time) (domain.ApprovalGrant, error) {
 	return domain.ApprovalGrant{ID: id, ActorID: actor, GuildID: guild, ScopeKind: domain.ApprovalScopeOperation, ScopeHash: hash, ApproverID: "human", IssuedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)}, nil
 }
+func (allowTestApproval) ConsumeLockdownPlan(_ context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, hash string, now time.Time) (domain.ApprovalGrant, error) {
+	return domain.ApprovalGrant{ID: id, ActorID: actor, GuildID: guild, ScopeKind: domain.ApprovalScopeLockdownPlan, ScopeHash: hash, ApproverID: "human", IssuedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)}, nil
+}
 func (allowTestApproval) ConsumeReconciliationPlan(_ context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, hash string, now time.Time) (domain.ApprovalGrant, error) {
 	return domain.ApprovalGrant{ID: id, ActorID: actor, GuildID: guild, ScopeKind: domain.ApprovalScopeReconciliationPlan, ScopeHash: hash, ApproverID: "human", IssuedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)}, nil
 }
@@ -337,8 +340,8 @@ func TestForgedPrincipalAndPolicyErrorsDeny(t *testing.T) {
 
 func TestRegistryCompleteness(t *testing.T) {
 	catalog := CommandCatalog()
-	if len(catalog) != 59 {
-		t.Fatalf("catalog has %d entries, want 59", len(catalog))
+	if len(catalog) != 60 {
+		t.Fatalf("catalog has %d entries, want 60", len(catalog))
 	}
 	seen := map[string]bool{}
 	for _, spec := range catalog {

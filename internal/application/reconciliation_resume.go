@@ -39,6 +39,9 @@ func operationDesiredIdentity(operation domain.PlanOperation) (string, int, bool
 	if operation.Payload.ApplicationCommand != nil {
 		return operation.Payload.ApplicationCommand.Name, int(operation.Payload.ApplicationCommand.Type), true
 	}
+	if operation.Payload.AutoModerationRule != nil {
+		return operation.Payload.AutoModerationRule.Name, int(operation.Payload.AutoModerationRule.TriggerType), true
+	}
 	return "", 0, false
 }
 
@@ -62,11 +65,12 @@ func resourcePresent(remoteID domain.Snowflake, snapshot domain.GuildSnapshot) b
 	return false
 }
 func snapshotResources(snapshot domain.GuildSnapshot) []domain.SnapshotResource {
-	result := make([]domain.SnapshotResource, 0, len(snapshot.Categories)+len(snapshot.Channels)+len(snapshot.Roles)+len(snapshot.Webhooks)+len(snapshot.ApplicationCommands))
+	result := make([]domain.SnapshotResource, 0, len(snapshot.Categories)+len(snapshot.Channels)+len(snapshot.Roles)+len(snapshot.Webhooks)+len(snapshot.ApplicationCommands)+len(snapshot.AutoModerationRules))
 	result = append(result, snapshot.Categories...)
 	result = append(result, snapshot.Channels...)
 	result = append(result, snapshot.Roles...)
 	result = append(result, snapshot.Webhooks...)
 	result = append(result, snapshot.ApplicationCommands...)
+	result = append(result, snapshot.AutoModerationRules...)
 	return result
 }

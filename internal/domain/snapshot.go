@@ -59,18 +59,20 @@ type SnapshotCapability struct {
 }
 
 type GuildSnapshot struct {
-	Metadata            SnapshotMetadata     `json:"metadata"`
-	Guild               Guild                `json:"guild"`
-	Categories          []SnapshotResource   `json:"categories"`
-	Channels            []SnapshotResource   `json:"channels"`
-	Roles               []SnapshotResource   `json:"roles"`
-	Webhooks            []SnapshotResource   `json:"webhooks"`
-	ApplicationCommands []SnapshotResource   `json:"application_commands"`
-	Onboarding          *Onboarding          `json:"onboarding,omitempty"`
-	Capabilities        []SnapshotCapability `json:"capabilities"`
-	Bindings            []ResourceBinding    `json:"bindings"`
-	ObservedChannels    []Channel            `json:"observed_channels"`
-	ObservedRoles       []Role               `json:"observed_roles"`
-	ObservedWebhooks    []Webhook            `json:"observed_webhooks"`
-	ObservedCommands    []ApplicationCommand `json:"observed_application_commands"`
+	Metadata                    SnapshotMetadata     `json:"metadata"`
+	Guild                       Guild                `json:"guild"`
+	Categories                  []SnapshotResource   `json:"categories"`
+	Channels                    []SnapshotResource   `json:"channels"`
+	Roles                       []SnapshotResource   `json:"roles"`
+	Webhooks                    []SnapshotResource   `json:"webhooks"`
+	ApplicationCommands         []SnapshotResource   `json:"application_commands"`
+	AutoModerationRules         []SnapshotResource   `json:"auto_moderation_rules,omitempty"`
+	Onboarding                  *Onboarding          `json:"onboarding,omitempty"`
+	Capabilities                []SnapshotCapability `json:"capabilities"`
+	Bindings                    []ResourceBinding    `json:"bindings"`
+	ObservedChannels            []Channel            `json:"observed_channels"`
+	ObservedRoles               []Role               `json:"observed_roles"`
+	ObservedWebhooks            []Webhook            `json:"observed_webhooks"`
+	ObservedCommands            []ApplicationCommand `json:"observed_application_commands"`
+	ObservedAutoModerationRules []AutoModerationRule `json:"observed_auto_moderation_rules,omitempty"`
 }

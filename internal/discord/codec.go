@@ -39,6 +39,8 @@ func commandPayload(command domain.Command) (any, bool) {
 		return map[string]any{"type": c.Overwrite.Type, "allow": c.Overwrite.Allow, "deny": c.Overwrite.Deny}, true
 	case domain.CreateMessage:
 		return messagePayload(c), true
+	case domain.ModifyMember:
+		return modifyMemberPayload(c), true
 	}
 	specBody := map[string]bool{"create_channel": true, "modify_channel": true, "reorder_channels": true, "create_role": true, "modify_role": true, "reorder_roles": true, "modify_member": true, "create_member_ban": true, "modify_message": true, "create_webhook": true, "modify_webhook": true, "modify_guild_onboarding": true, "create_invite": true, "create_scheduled_event": true, "modify_scheduled_event": true, "create_auto_moderation_rule": true, "modify_auto_moderation_rule": true}
 	if !specBody[command.CommandName()] {
@@ -70,6 +72,15 @@ func structPayload(command domain.Command) map[string]any {
 	}
 	return out
 }
+func modifyMemberPayload(c domain.ModifyMember) map[string]any {
+	out := structPayload(c)
+	delete(out, "remove_communication_disabled")
+	if c.RemoveCommunicationDisabled != nil && *c.RemoveCommunicationDisabled {
+		out["communication_disabled_until"] = nil
+	}
+	return out
+}
+
 func messagePayload(c domain.CreateMessage) map[string]any {
 	out := map[string]any{}
 	if c.Content != nil {

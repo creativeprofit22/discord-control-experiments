@@ -42,6 +42,351 @@
       },
       {
         "type": 2,
+        "name": "moderation",
+        "description": "Run policy-governed moderation",
+        "options": [
+          {
+            "type": 1,
+            "name": "warn",
+            "description": "Record a warning",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "timeout",
+            "description": "Apply a timeout",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              },
+              {
+                "type": 4,
+                "name": "duration_minutes",
+                "description": "Timeout duration in minutes",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "remove-timeout",
+            "description": "Remove a timeout",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "kick",
+            "description": "Kick a member",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "ban",
+            "description": "Ban a member",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "unban",
+            "description": "Unban a member",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "quarantine-add",
+            "description": "Add the quarantine role",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "quarantine-remove",
+            "description": "Remove the quarantine role",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "reason_code",
+                "description": "Configured reason code",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "idempotency_key",
+                "description": "Unique retry key",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "case",
+            "description": "Look up a moderation case",
+            "options": [
+              {
+                "type": 3,
+                "name": "case_id",
+                "description": "Moderation case ID",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "escalation",
+            "description": "Review deterministic escalation",
+            "options": [
+              {
+                "type": 6,
+                "name": "user",
+                "description": "Subject member",
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": 2,
+        "name": "lockdown",
+        "description": "Review emergency lockdown controls",
+        "options": [
+          {
+            "type": 1,
+            "name": "plan",
+            "description": "Build lockdown and recovery plans",
+            "options": [
+              {
+                "type": 3,
+                "name": "channels",
+                "description": "Comma-separated channel IDs",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "apply",
+            "description": "Apply a reviewed lockdown plan",
+            "options": [
+              {
+                "type": 3,
+                "name": "plan_hash",
+                "description": "Reviewed full plan hash",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "approval_id",
+                "description": "Single-use approval ID",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "recover",
+            "description": "Apply exact reviewed recovery",
+            "options": [
+              {
+                "type": 3,
+                "name": "plan_hash",
+                "description": "Reviewed full recovery hash",
+                "required": true
+              },
+              {
+                "type": 3,
+                "name": "approval_id",
+                "description": "Single-use approval ID",
+                "required": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": 2,
         "name": "jobs",
         "description": "Inspect or control durable jobs",
         "options": [

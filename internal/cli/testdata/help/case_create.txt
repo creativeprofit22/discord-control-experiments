@@ -1,0 +1,3 @@
+Usage: discord-control case create --guild VALUE --input VALUE
+
+Create a moderation case

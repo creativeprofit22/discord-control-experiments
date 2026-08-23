@@ -1,7 +1,9 @@
 # Declarative schema v1
 
 Owner: Maintainers<br>
-Last reviewed: 2026-08-21
+Last reviewed: 2026-08-23
+
+> **Frozen:** v1 receives no new fields. Strict v1 input migrates to v2 with an empty `auto_moderation_rules` collection before validation and hashing.
 
 A desired document is strict JSON with `schema_version: "discord-control/v1"`. Unknown or duplicate keys, trailing JSON, nesting deeper than 32 levels, documents over 1 MiB, secret-shaped keys, unresolved references, duplicate logical IDs, and excessive collections are rejected before planning.
 

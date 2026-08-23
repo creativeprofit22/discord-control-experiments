@@ -107,10 +107,17 @@ func (s *DiscordService) execute(ctx context.Context, command domain.Command) (u
 }
 
 func (s *DiscordService) dispatchDiscord(ctx context.Context, invocation Invocation, command domain.Command) (untypedExecution, error) {
+	return s.dispatchDiscordWithCapability(ctx, invocation, command, "")
+}
+
+func (s *DiscordService) dispatchDiscordWithCapability(ctx context.Context, invocation Invocation, command domain.Command, capability domain.Capability) (untypedExecution, error) {
 	if err := validateCommand(command); err != nil {
 		return untypedExecution{}, err
 	}
 	spec, ok := LookupCommandSpec(command.CommandName())
+	if capability != "" {
+		spec.Capability = capability
+	}
 	if !ok || spec.ResourceExtractor == nil || spec.IntentSanitizer == nil {
 		return untypedExecution{}, &domain.AuthorizationError{Reason: domain.PolicyUnknownCommand}
 	}
@@ -150,7 +157,7 @@ func (s *DiscordService) dispatchDiscord(ctx context.Context, invocation Invocat
 		return untypedExecution{}, s.auditDenial(ctx, invocation, command, spec, domain.PolicyModeDenied, "read_only_mutation")
 	}
 	var approval domain.ApprovalGrant
-	if decision.EffectiveMode == domain.ModeApply && domain.RequiresApproval(destructiveClass) && !invocation.reconciliation.allows(decision.ActorID, command) {
+	if decision.EffectiveMode == domain.ModeApply && domain.RequiresApproval(destructiveClass) && !invocation.reconciliation.allows(decision.ActorID, command) && !invocation.lockdown.allows(decision.ActorID, command) {
 		if s.approvals == nil || invocation.ApprovalID == "" {
 			s.securityTelemetry.RecordSecurityEvent(ctx, domain.SecurityEvent{Kind: "approval_bypass", Reason: domain.PolicyApprovalRequired, Mode: decision.EffectiveMode, DestructiveClass: destructiveClass, CorrelationID: invocation.CorrelationID, OccurredAt: s.now()})
 			return untypedExecution{}, s.auditDenial(ctx, invocation, command, spec, domain.PolicyApprovalRequired, "approval_missing")
@@ -492,6 +499,11 @@ func validateDiscordResultOwnership(command domain.Command, value any) error {
 				return err
 			}
 		}
+		for _, rule := range result.AutoModerationRules {
+			if rule.GuildID != expectedGuild {
+				return &domain.OwnershipError{Resource: "auto_moderation_rule", Expected: expectedGuild, Actual: rule.GuildID}
+			}
+		}
 		if result.Onboarding != nil && result.Onboarding.GuildID != expectedGuild {
 			return &domain.OwnershipError{Resource: "onboarding", Expected: expectedGuild, Actual: result.Onboarding.GuildID}
 		}
@@ -544,6 +556,7 @@ func (s *DiscordService) recordOwnership(command domain.Command, value any) {
 	recordWebhook := func(w domain.Webhook) { s.ownership.Record(ResourceWebhook, string(w.ID), guild) }
 	recordInvite := func(i domain.Invite) { s.ownership.Record(ResourceInvite, string(i.Code), guild) }
 	recordEvent := func(e domain.ScheduledEvent) { s.ownership.Record(ResourceScheduledEvent, string(e.ID), guild) }
+	recordAutoModerationRule := func(r domain.AutoModerationRule) { s.ownership.Record(ResourceAutoModerationRule, string(r.ID), guild) }
 	switch result := value.(type) {
 	case domain.GuildInspection:
 		for _, x := range result.Channels {
@@ -560,6 +573,9 @@ func (s *DiscordService) recordOwnership(command domain.Command, value any) {
 		}
 		for _, x := range result.ScheduledEvents {
 			recordEvent(x)
+		}
+		for _, x := range result.AutoModerationRules {
+			recordAutoModerationRule(x)
 		}
 	case domain.Channel:
 		recordChannel(result)
@@ -603,6 +619,12 @@ func (s *DiscordService) recordOwnership(command domain.Command, value any) {
 		for _, x := range result {
 			s.ownership.Record(ResourceApplicationCommand, string(x.ID), guild)
 		}
+	case domain.AutoModerationRule:
+		recordAutoModerationRule(result)
+	case []domain.AutoModerationRule:
+		for _, x := range result {
+			recordAutoModerationRule(x)
+		}
 	}
 	s.removeDeleted(command)
 }
@@ -618,6 +640,8 @@ func (s *DiscordService) removeDeleted(command domain.Command) {
 		s.ownership.Remove(ResourceInvite, string(c.Code))
 	case domain.DeleteScheduledEvent:
 		s.ownership.Remove(ResourceScheduledEvent, string(c.ScheduledEventID))
+	case domain.DeleteAutoModerationRule:
+		s.ownership.Remove(ResourceAutoModerationRule, string(c.RuleID))
 	}
 }
 

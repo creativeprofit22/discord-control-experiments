@@ -1,0 +1,3 @@
+Usage: discord-control case invite-create --guild VALUE --input VALUE
+
+moderation.invite_create

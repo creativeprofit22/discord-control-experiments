@@ -1,0 +1,3 @@
+Usage: discord-control case warn --guild VALUE --input VALUE
+
+moderation.warn

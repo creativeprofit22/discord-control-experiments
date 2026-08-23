@@ -139,6 +139,8 @@ func toolsetsForCommand(spec CommandSpec) []Toolset {
 func commandResultType(name string) (reflect.Type, error) {
 	var value any
 	switch name {
+	case "get_current_user":
+		value = domain.User{}
 	case "inspect_guild":
 		value = domain.GuildInspection{}
 	case "list_guild_channels", "reorder_channels":

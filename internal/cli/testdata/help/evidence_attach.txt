@@ -1,0 +1,3 @@
+Usage: discord-control evidence attach --guild VALUE --input VALUE
+
+Attach a structured evidence locator

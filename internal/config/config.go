@@ -109,19 +109,51 @@ type Reconciliation struct {
 	RetentionDays            int    `json:"retentionDays"`
 }
 
+type ModerationEscalationRule struct {
+	ID                  string   `json:"id"`
+	Priority            int      `json:"priority"`
+	EligiblePriorKinds  []string `json:"eligiblePriorKinds"`
+	Lookback            string   `json:"lookback"`
+	MinimumCount        int      `json:"minimumCount"`
+	Action              string   `json:"action"`
+	Duration            string   `json:"duration,omitempty"`
+	DeleteWindow        string   `json:"deleteWindow,omitempty"`
+	MaximumApplications int      `json:"maximumApplications"`
+}
+
+type Moderation struct {
+	PolicyVersion                    string                     `json:"policyVersion"`
+	Retention                        string                     `json:"retention"`
+	MaxCasesPerGuild                 int                        `json:"maxCasesPerGuild"`
+	MaxActionsPerCase                int                        `json:"maxActionsPerCase"`
+	MaxActionsPerSubjectWindow       int                        `json:"maxActionsPerSubjectWindow"`
+	MaxActionsPerGuildWindow         int                        `json:"maxActionsPerGuildWindow"`
+	ReasonCodes                      []string                   `json:"reasonCodes"`
+	QuarantineRoleID                 string                     `json:"quarantineRoleId,omitempty"`
+	ProtectedOperatorRoleIDs         []string                   `json:"protectedOperatorRoleIds"`
+	EscalationRules                  []ModerationEscalationRule `json:"escalationRules"`
+	MaxLockdownOperations            int                        `json:"maxLockdownOperations"`
+	MaxLockdownDestructiveOperations int                        `json:"maxLockdownDestructiveOperations"`
+	LockdownPlanTTL                  string                     `json:"lockdownPlanTtl"`
+}
+
 type SecurityAlerts struct {
-	DenialThreshold            int    `json:"denialThreshold"`
-	DenialWindow               string `json:"denialWindow"`
-	DestructiveThreshold       int    `json:"destructiveThreshold"`
-	DestructiveWindow          string `json:"destructiveWindow"`
-	SignatureFailureThreshold  int    `json:"signatureFailureThreshold,omitempty"`
-	SignatureFailureWindow     string `json:"signatureFailureWindow,omitempty"`
-	AckDeadlineMissThreshold   int    `json:"ackDeadlineMissThreshold,omitempty"`
-	AckDeadlineMissWindow      string `json:"ackDeadlineMissWindow,omitempty"`
-	CallbackFailureThreshold   int    `json:"callbackFailureThreshold,omitempty"`
-	CallbackFailureWindow      string `json:"callbackFailureWindow,omitempty"`
-	HandlerSaturationThreshold int    `json:"handlerSaturationThreshold,omitempty"`
-	HandlerSaturationWindow    string `json:"handlerSaturationWindow,omitempty"`
+	DenialThreshold                 int    `json:"denialThreshold"`
+	DenialWindow                    string `json:"denialWindow"`
+	DestructiveThreshold            int    `json:"destructiveThreshold"`
+	DestructiveWindow               string `json:"destructiveWindow"`
+	SignatureFailureThreshold       int    `json:"signatureFailureThreshold,omitempty"`
+	SignatureFailureWindow          string `json:"signatureFailureWindow,omitempty"`
+	AckDeadlineMissThreshold        int    `json:"ackDeadlineMissThreshold,omitempty"`
+	AckDeadlineMissWindow           string `json:"ackDeadlineMissWindow,omitempty"`
+	CallbackFailureThreshold        int    `json:"callbackFailureThreshold,omitempty"`
+	CallbackFailureWindow           string `json:"callbackFailureWindow,omitempty"`
+	HandlerSaturationThreshold      int    `json:"handlerSaturationThreshold,omitempty"`
+	HandlerSaturationWindow         string `json:"handlerSaturationWindow,omitempty"`
+	ModerationDestructiveThreshold  int    `json:"moderationDestructiveThreshold,omitempty"`
+	ModerationDestructiveWindow     string `json:"moderationDestructiveWindow,omitempty"`
+	LockdownPartialFailureThreshold int    `json:"lockdownPartialFailureThreshold,omitempty"`
+	LockdownPartialFailureWindow    string `json:"lockdownPartialFailureWindow,omitempty"`
 }
 
 type File struct {
@@ -135,6 +167,7 @@ type File struct {
 	Audit                      *Audit          `json:"audit,omitempty"`
 	SecurityAlerts             *SecurityAlerts `json:"securityAlerts,omitempty"`
 	Reconciliation             *Reconciliation `json:"reconciliation,omitempty"`
+	Moderation                 *Moderation     `json:"moderation,omitempty"`
 	SecretEnvironmentAllowlist []string        `json:"secretEnvironmentAllowlist,omitempty"`
 }
 
@@ -155,6 +188,7 @@ type Resolved struct {
 	Audit                  Audit
 	SecurityAlerts         SecurityAlerts
 	Reconciliation         Reconciliation
+	Moderation             Moderation
 }
 
 type Diagnostics struct {
@@ -265,6 +299,21 @@ func applySecurityDefaults(file *File) {
 	if file.Reconciliation == nil {
 		file.Reconciliation = &Reconciliation{StateDirectory: "state", MaxOperations: 100, MaxDestructiveOperations: 10, RetentionDays: 30}
 	}
+	if file.Moderation == nil {
+		file.Moderation = &Moderation{PolicyVersion: "disabled-v1", Retention: "720h", MaxCasesPerGuild: 10000, MaxActionsPerCase: 100, MaxActionsPerSubjectWindow: 10, MaxActionsPerGuildWindow: 100, ReasonCodes: []string{}, ProtectedOperatorRoleIDs: []string{}, EscalationRules: []ModerationEscalationRule{}, MaxLockdownOperations: 100, MaxLockdownDestructiveOperations: 20, LockdownPlanTTL: "15m"}
+	}
+	if alerts.ModerationDestructiveThreshold == 0 {
+		alerts.ModerationDestructiveThreshold = 5
+	}
+	if alerts.ModerationDestructiveWindow == "" {
+		alerts.ModerationDestructiveWindow = "5m"
+	}
+	if alerts.LockdownPartialFailureThreshold == 0 {
+		alerts.LockdownPartialFailureThreshold = 1
+	}
+	if alerts.LockdownPartialFailureWindow == "" {
+		alerts.LockdownPartialFailureWindow = "5m"
+	}
 }
 
 type EnvironmentResolver struct{ Lookup func(string) (string, bool) }
@@ -333,7 +382,7 @@ func Load(reader io.Reader, resolver SecretResolver) (Resolved, error) {
 			return Resolved{}, errors.New("required interactions TLS private key is unavailable")
 		}
 	}
-	return Resolved{Version: file.Version, DiscordToken: token, DiscordWebhooks: webhooks, SecretProvider: provider, MCPEnabled: *file.MCP.Enabled, MCP: file.MCP, InteractionsEnabled: *file.Interactions.Enabled, Interactions: file.Interactions, InteractionCertificate: certificate, InteractionPrivateKey: privateKey, Observability: file.Observability, Policy: *file.Policy, Approvals: *file.Approvals, Audit: *file.Audit, SecurityAlerts: *file.SecurityAlerts, Reconciliation: *file.Reconciliation}, nil
+	return Resolved{Version: file.Version, DiscordToken: token, DiscordWebhooks: webhooks, SecretProvider: provider, MCPEnabled: *file.MCP.Enabled, MCP: file.MCP, InteractionsEnabled: *file.Interactions.Enabled, Interactions: file.Interactions, InteractionCertificate: certificate, InteractionPrivateKey: privateKey, Observability: file.Observability, Policy: *file.Policy, Approvals: *file.Approvals, Audit: *file.Audit, SecurityAlerts: *file.SecurityAlerts, Reconciliation: *file.Reconciliation, Moderation: *file.Moderation}, nil
 }
 
 func (r Resolved) Diagnostics() Diagnostics {

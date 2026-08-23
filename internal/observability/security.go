@@ -25,20 +25,24 @@ type SecurityAlertSink interface {
 }
 
 type SecurityOptions struct {
-	DenialThreshold            int
-	DenialWindow               time.Duration
-	DestructiveThreshold       int
-	DestructiveWindow          time.Duration
-	SignatureFailureThreshold  int
-	SignatureFailureWindow     time.Duration
-	AckDeadlineMissThreshold   int
-	AckDeadlineMissWindow      time.Duration
-	CallbackFailureThreshold   int
-	CallbackFailureWindow      time.Duration
-	HandlerSaturationThreshold int
-	HandlerSaturationWindow    time.Duration
-	AlertSink                  SecurityAlertSink
-	Now                        func() time.Time
+	DenialThreshold                 int
+	DenialWindow                    time.Duration
+	DestructiveThreshold            int
+	DestructiveWindow               time.Duration
+	SignatureFailureThreshold       int
+	SignatureFailureWindow          time.Duration
+	AckDeadlineMissThreshold        int
+	AckDeadlineMissWindow           time.Duration
+	CallbackFailureThreshold        int
+	CallbackFailureWindow           time.Duration
+	HandlerSaturationThreshold      int
+	HandlerSaturationWindow         time.Duration
+	ModerationDestructiveThreshold  int
+	ModerationDestructiveWindow     time.Duration
+	LockdownPartialFailureThreshold int
+	LockdownPartialFailureWindow    time.Duration
+	AlertSink                       SecurityAlertSink
+	Now                             func() time.Time
 }
 
 type loggerAlertSink struct{ logger *slog.Logger }
@@ -52,14 +56,16 @@ type windowState struct {
 	suppressUntil time.Time
 }
 type securityMonitor struct {
-	mu              sync.Mutex
-	denial          windowState
-	destructive     windowState
-	signature       windowState
-	ackDeadline     windowState
-	callbackFailure windowState
-	saturation      windowState
-	options         SecurityOptions
+	mu                    sync.Mutex
+	denial                windowState
+	destructive           windowState
+	signature             windowState
+	ackDeadline           windowState
+	callbackFailure       windowState
+	saturation            windowState
+	moderationDestructive windowState
+	lockdownPartial       windowState
+	options               SecurityOptions
 }
 
 func newSecurityMonitor(options SecurityOptions, logger *slog.Logger) *securityMonitor {
@@ -87,6 +93,12 @@ func newSecurityMonitor(options SecurityOptions, logger *slog.Logger) *securityM
 	if options.HandlerSaturationThreshold <= 0 {
 		options.HandlerSaturationThreshold = 5
 	}
+	if options.ModerationDestructiveThreshold <= 0 {
+		options.ModerationDestructiveThreshold = 5
+	}
+	if options.LockdownPartialFailureThreshold <= 0 {
+		options.LockdownPartialFailureThreshold = 1
+	}
 	if options.SignatureFailureWindow < time.Second {
 		options.SignatureFailureWindow = 5 * time.Minute
 	}
@@ -98,6 +110,12 @@ func newSecurityMonitor(options SecurityOptions, logger *slog.Logger) *securityM
 	}
 	if options.HandlerSaturationWindow < time.Second {
 		options.HandlerSaturationWindow = 5 * time.Minute
+	}
+	if options.ModerationDestructiveWindow < time.Second {
+		options.ModerationDestructiveWindow = 5 * time.Minute
+	}
+	if options.LockdownPartialFailureWindow < time.Second {
+		options.LockdownPartialFailureWindow = 5 * time.Minute
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -134,6 +152,11 @@ func (p *Provider) RecordSecurityEvent(ctx context.Context, event domain.Securit
 		p.securityMonitor.record(ctx, &p.securityMonitor.callbackFailure, p.securityMonitor.options.CallbackFailureThreshold, p.securityMonitor.options.CallbackFailureWindow, event)
 	case "interaction_handler_saturation":
 		p.securityMonitor.record(ctx, &p.securityMonitor.saturation, p.securityMonitor.options.HandlerSaturationThreshold, p.securityMonitor.options.HandlerSaturationWindow, event)
+	case "moderation_destructive_apply":
+		p.securityMonitor.record(ctx, &p.securityMonitor.moderationDestructive, p.securityMonitor.options.ModerationDestructiveThreshold, p.securityMonitor.options.ModerationDestructiveWindow, event)
+	case "lockdown_partial_failure":
+		p.securityMonitor.record(ctx, &p.securityMonitor.lockdownPartial, p.securityMonitor.options.LockdownPartialFailureThreshold, p.securityMonitor.options.LockdownPartialFailureWindow, event)
+
 	}
 }
 

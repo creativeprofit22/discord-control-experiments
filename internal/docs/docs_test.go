@@ -15,7 +15,8 @@ var required = []string{
 	"docs/reference/configuration.md", "docs/reference/discord-rest-core.md", "docs/reference/capability-policy.md", "docs/reference/discord-permissions.md", "docs/reference/approval-model.md", "docs/reference/audit-retention.md", "docs/security/model.md", "docs/operations/operator-guide.md",
 	"docs/contributing/contributor-guide.md", "docs/testing/strategy.md", "docs/testing/discord-fixtures.md", "docs/testing/security-catalog.md", "docs/observability/guide.md",
 	"docs/runbooks/README.md", "docs/runbooks/startup-failure.md", "docs/runbooks/secret-rotation.md", "docs/runbooks/security-incident.md",
-	"docs/reconciliation/schema-v1.md", "docs/reconciliation/migrations.md", "docs/reconciliation/snapshots.md", "docs/reconciliation/planning.md", "docs/reconciliation/recovery.md",
+	"docs/reconciliation/schema-v1.md", "docs/reconciliation/schema-v2.md", "docs/reconciliation/migrations.md", "docs/reconciliation/snapshots.md", "docs/reconciliation/planning.md", "docs/reconciliation/recovery.md",
+	"docs/moderation/guide.md", "docs/moderation/action-matrix.md", "docs/moderation/automod-reference.md", "docs/moderation/escalation-policy.md", "docs/moderation/evidence-privacy-retention.md", "docs/moderation/appeal-export.md", "docs/moderation/lockdown-checklist.md", "docs/moderation/runbook.md",
 }
 
 var markdownLink = regexp.MustCompile(`\[[^]]*\]\(([^)]+)\)`)
@@ -50,7 +51,7 @@ func TestDocumentationContract(t *testing.T) {
 		if relative == "docs/reference/configuration.md" || relative == "docs/reference/capability-policy.md" {
 			expectedReviewDate = "2026-08-22"
 		}
-		if relative == "docs/adr/0003-dependency-update-policy.md" {
+		if relative == "docs/adr/0003-dependency-update-policy.md" || strings.Contains(relative, "docs/moderation/") || relative == "docs/reconciliation/schema-v1.md" || relative == "docs/reconciliation/schema-v2.md" || relative == "docs/reconciliation/migrations.md" || relative == "docs/reference/configuration.md" || relative == "docs/reference/capability-policy.md" {
 			expectedReviewDate = "2026-08-23"
 		}
 		if !strings.Contains(text, "Owner: ") || !strings.Contains(text, "Last reviewed: "+expectedReviewDate) {

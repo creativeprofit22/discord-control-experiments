@@ -87,8 +87,28 @@ func operationDependsOn(operation, candidate domain.PlanOperation) bool {
 	if operation.Kind == domain.OperationOverwrite && (candidate.Resource.Kind == domain.ResourceRole || candidate.Resource == operation.Resource) {
 		return true
 	}
+	if operation.Resource == candidate.Resource && operation.Resource.Kind == domain.ResourceAutoModerationRule && (candidate.Kind == domain.OperationCreate || candidate.Kind == domain.OperationReplace) && operation.Kind == domain.OperationUpdate {
+		return true
+	}
 	if operation.Resource.Kind == domain.ResourceWebhook && candidate.Resource.Kind == domain.ResourceChannel {
 		return operation.Payload.Webhook != nil && operation.Payload.Webhook.Channel == candidate.Resource
+	}
+	if operation.Resource.Kind == domain.ResourceAutoModerationRule && operation.Payload.AutoModerationRule != nil {
+		for _, ref := range operation.Payload.AutoModerationRule.ExemptRoles {
+			if ref == candidate.Resource {
+				return true
+			}
+		}
+		for _, ref := range operation.Payload.AutoModerationRule.ExemptChannels {
+			if ref == candidate.Resource {
+				return true
+			}
+		}
+		for _, action := range operation.Payload.AutoModerationRule.Actions {
+			if action.AlertChannel != nil && *action.AlertChannel == candidate.Resource {
+				return true
+			}
+		}
 	}
 	if operation.Resource.Kind == domain.ResourceOnboarding && (candidate.Resource.Kind == domain.ResourceChannel || candidate.Resource.Kind == domain.ResourceRole || candidate.Resource.Kind == domain.ResourceCategory) {
 		return true

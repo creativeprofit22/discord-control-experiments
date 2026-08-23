@@ -1,0 +1,3 @@
+Usage: discord-control case get --guild VALUE --input VALUE
+
+Get a moderation case

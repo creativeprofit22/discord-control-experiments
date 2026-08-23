@@ -33,6 +33,16 @@ func CommandCatalog() []ApplicationCommand {
 	return []ApplicationCommand{{Type: 1, Name: "discord-control", Description: "Operate Discord control-plane jobs", DefaultMemberPermissions: "32", DMPermission: false, IntegrationTypes: []int{0}, Contexts: []int{0}, Options: []ApplicationCommandOption{
 		{Type: 1, Name: "health", Description: "Check local and Discord health"},
 		{Type: 1, Name: "policy", Description: "Show your effective capability decision", Options: []ApplicationCommandOption{{Type: 3, Name: "capability", Description: "Capability to evaluate", Required: true, Choices: []Choice{{Name: "Guild inspect", Value: "guild.inspect"}, {Name: "Job read", Value: "job.read"}, {Name: "Job cancel", Value: "job.cancel"}, {Name: "Job resume", Value: "job.resume"}}}}},
+		{Type: 2, Name: "moderation", Description: "Run policy-governed moderation", Options: []ApplicationCommandOption{
+			moderationActionOption("warn", "Record a warning", false), moderationActionOption("timeout", "Apply a timeout", true), moderationActionOption("remove-timeout", "Remove a timeout", false), moderationActionOption("kick", "Kick a member", false), moderationActionOption("ban", "Ban a member", false), moderationActionOption("unban", "Unban a member", false), moderationActionOption("quarantine-add", "Add the quarantine role", false), moderationActionOption("quarantine-remove", "Remove the quarantine role", false),
+			{Type: 1, Name: "case", Description: "Look up a moderation case", Options: []ApplicationCommandOption{{Type: 3, Name: "case_id", Description: "Moderation case ID", Required: true}}},
+			{Type: 1, Name: "escalation", Description: "Review deterministic escalation", Options: []ApplicationCommandOption{{Type: 6, Name: "user", Description: "Subject member", Required: true}}},
+		}},
+		{Type: 2, Name: "lockdown", Description: "Review emergency lockdown controls", Options: []ApplicationCommandOption{
+			{Type: 1, Name: "plan", Description: "Build lockdown and recovery plans", Options: []ApplicationCommandOption{{Type: 3, Name: "channels", Description: "Comma-separated channel IDs", Required: true}}},
+			{Type: 1, Name: "apply", Description: "Apply a reviewed lockdown plan", Options: []ApplicationCommandOption{{Type: 3, Name: "plan_hash", Description: "Reviewed full plan hash", Required: true}, {Type: 3, Name: "approval_id", Description: "Single-use approval ID", Required: true}}},
+			{Type: 1, Name: "recover", Description: "Apply exact reviewed recovery", Options: []ApplicationCommandOption{{Type: 3, Name: "plan_hash", Description: "Reviewed full recovery hash", Required: true}, {Type: 3, Name: "approval_id", Description: "Single-use approval ID", Required: true}}},
+		}},
 		{Type: 2, Name: "jobs", Description: "Inspect or control durable jobs", Options: []ApplicationCommandOption{
 			{Type: 1, Name: "list", Description: "List jobs in this server"},
 			{Type: 1, Name: "status", Description: "Show one job", Options: []ApplicationCommandOption{{Type: 3, Name: "run_id", Description: "Durable job run ID", Required: true}}},
@@ -40,6 +50,14 @@ func CommandCatalog() []ApplicationCommand {
 			{Type: 1, Name: "resume", Description: "Review and resume a recoverable job", Options: []ApplicationCommandOption{{Type: 3, Name: "run_id", Description: "Durable job run ID", Required: true}}},
 		}},
 	}}}
+}
+
+func moderationActionOption(name, description string, duration bool) ApplicationCommandOption {
+	options := []ApplicationCommandOption{{Type: 6, Name: "user", Description: "Subject member", Required: true}, {Type: 3, Name: "case_id", Description: "Moderation case ID", Required: true}, {Type: 3, Name: "reason_code", Description: "Configured reason code", Required: true}, {Type: 3, Name: "idempotency_key", Description: "Unique retry key", Required: true}}
+	if duration {
+		options = append(options, ApplicationCommandOption{Type: 4, Name: "duration_minutes", Description: "Timeout duration in minutes", Required: true})
+	}
+	return ApplicationCommandOption{Type: 1, Name: name, Description: description, Options: options}
 }
 
 var commandNamePattern = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)

@@ -38,6 +38,10 @@ func (approval *boundReconciliationApproval) ConsumeOperation(context.Context, d
 	return domain.ApprovalGrant{}, fmt.Errorf("unexpected operation approval consumption")
 }
 
+func (approval *boundReconciliationApproval) ConsumeLockdownPlan(context.Context, domain.ApprovalID, domain.ActorID, domain.GuildID, string, time.Time) (domain.ApprovalGrant, error) {
+	return domain.ApprovalGrant{}, fmt.Errorf("unexpected lockdown approval consumption")
+}
+
 func (approval *boundReconciliationApproval) ConsumeReconciliationPlan(_ context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, planHash string, now time.Time) (domain.ApprovalGrant, error) {
 	approval.planConsumes++
 	if id != approval.id || actor != approval.actor || guild != approval.guild || planHash != string(approval.planHash) {

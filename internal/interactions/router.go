@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ken-kai/discord-control-experiments/internal/application"
@@ -156,6 +157,61 @@ func (r *Router) runCommand(ctx context.Context, interaction VerifiedInteraction
 	case "policy":
 		result, err := r.service.Policy(ctx, identity, domain.Capability(value))
 		return deferred("policy", result, err)
+	case "moderation.case":
+		var input struct {
+			CaseID domain.CaseID `json:"case_id"`
+		}
+		if json.Unmarshal([]byte(value), &input) != nil {
+			return unavailableResult()
+		}
+		result, err := r.service.ModerationCase(ctx, identity, input.CaseID)
+		return deferred("moderation_case", result, err)
+	case "moderation.escalation":
+		var input struct {
+			User domain.UserID `json:"user"`
+		}
+		if json.Unmarshal([]byte(value), &input) != nil {
+			return unavailableResult()
+		}
+		result, err := r.service.Escalation(ctx, identity, input.User)
+		return deferred("escalation", result, err)
+	case "moderation.warn", "moderation.timeout", "moderation.remove-timeout", "moderation.kick", "moderation.ban", "moderation.unban", "moderation.quarantine-add", "moderation.quarantine-remove":
+		var input struct {
+			User            domain.UserID         `json:"user"`
+			CaseID          domain.CaseID         `json:"case_id"`
+			ReasonCode      domain.ReasonCode     `json:"reason_code"`
+			IdempotencyKey  domain.IdempotencyKey `json:"idempotency_key"`
+			DurationMinutes int                   `json:"duration_minutes,omitempty"`
+		}
+		if json.Unmarshal([]byte(value), &input) != nil {
+			return unavailableResult()
+		}
+		kinds := map[string]domain.ActionKind{"moderation.warn": domain.ActionWarn, "moderation.timeout": domain.ActionTimeout, "moderation.remove-timeout": domain.ActionTimeoutRemove, "moderation.kick": domain.ActionKick, "moderation.ban": domain.ActionBan, "moderation.unban": domain.ActionUnban, "moderation.quarantine-add": domain.ActionQuarantineAdd, "moderation.quarantine-remove": domain.ActionQuarantineRemove}
+		result, err := r.service.Moderate(ctx, identity, application.ModerationActionRequest{CaseID: input.CaseID, SubjectUserID: input.User, Kind: kinds[route], ReasonCode: input.ReasonCode, IdempotencyKey: input.IdempotencyKey, Duration: time.Duration(input.DurationMinutes) * time.Minute})
+		return deferred("moderation_action", result, err)
+	case "lockdown.plan":
+		var input struct {
+			Channels string `json:"channels"`
+		}
+		if json.Unmarshal([]byte(value), &input) != nil {
+			return unavailableResult()
+		}
+		ids, ok := parseChannelScope(input.Channels)
+		if !ok {
+			return unavailableResult()
+		}
+		plan, recovery, err := r.service.BuildLockdown(ctx, identity, domain.LockdownScope{ChannelIDs: ids})
+		return deferred("lockdown_plan", map[string]any{"plan": plan, "recovery": recovery}, err)
+	case "lockdown.apply", "lockdown.recover":
+		var input struct {
+			PlanHash   domain.LockdownPlanHash `json:"plan_hash"`
+			ApprovalID domain.ApprovalID       `json:"approval_id"`
+		}
+		if json.Unmarshal([]byte(value), &input) != nil {
+			return unavailableResult()
+		}
+		result, err := r.service.ApplyLockdown(ctx, identity, input.PlanHash, input.ApprovalID, route == "lockdown.recover")
+		return deferred("lockdown_apply", result, err)
 	case "jobs.list":
 		jobs, err := r.service.ListJobs(ctx, identity)
 		if err != nil {
@@ -425,6 +481,11 @@ func parseCommand(data *CommandData) (string, string, bool) {
 		value, ok := stringOption(first.Options[0])
 		return "policy", value, ok
 	}
+	if (first.Name == "moderation" || first.Name == "lockdown") && len(first.Options) == 1 {
+		second := first.Options[0]
+		payload, ok := commandOptionsJSON(second.Options)
+		return first.Name + "." + second.Name, payload, ok
+	}
 	if first.Name != "jobs" || len(first.Options) != 1 {
 		return "", "", false
 	}
@@ -438,8 +499,53 @@ func parseCommand(data *CommandData) (string, string, bool) {
 	value, ok := stringOption(second.Options[0])
 	return "jobs." + second.Name, value, ok
 }
+func commandOptionsJSON(options []CommandOption) (string, bool) {
+	values := map[string]any{}
+	for _, option := range options {
+		switch option.Type {
+		case 3, 6:
+			value, ok := stringOption(option)
+			if !ok {
+				return "", false
+			}
+			values[option.Name] = value
+		case 4:
+			var value int
+			if json.Unmarshal(option.Value, &value) != nil || value < 1 || value > 40320 {
+				return "", false
+			}
+			values[option.Name] = value
+		default:
+			return "", false
+		}
+	}
+	payload, err := json.Marshal(values)
+	return string(payload), err == nil
+}
+func parseChannelScope(value string) ([]domain.ChannelID, bool) {
+	parts := strings.Split(value, ",")
+	if len(parts) == 0 || len(parts) > 25 {
+		return nil, false
+	}
+	result := make([]domain.ChannelID, 0, len(parts))
+	seen := map[string]bool{}
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" || len(part) > 20 || seen[part] {
+			return nil, false
+		}
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				return nil, false
+			}
+		}
+		seen[part] = true
+		result = append(result, domain.ChannelID(part))
+	}
+	return result, true
+}
 func stringOption(option CommandOption) (string, bool) {
-	if option.Type != 3 || len(option.Value) == 0 {
+	if (option.Type != 3 && option.Type != 6) || len(option.Value) == 0 {
 		return "", false
 	}
 	var value string

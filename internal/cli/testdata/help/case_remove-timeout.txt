@@ -1,0 +1,3 @@
+Usage: discord-control case remove-timeout --guild VALUE --input VALUE
+
+moderation.timeout_remove

@@ -1,0 +1,3 @@
+Usage: discord-control lockdown plan --guild VALUE --input VALUE
+
+Build and persist lockdown/recovery plans

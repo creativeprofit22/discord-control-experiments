@@ -23,6 +23,8 @@ type CommandContext struct {
 
 func (c CommandContext) GuildScope() GuildID { return c.GuildID }
 
+type GetCurrentUser struct{ CommandContext }
+
 type InspectGuild struct {
 	CommandContext
 	ApplicationID *ApplicationID
@@ -141,13 +143,14 @@ type GetMember struct {
 }
 type ModifyMember struct {
 	CommandContext
-	UserID                     UserID
-	Nick                       *string
-	Roles                      *[]RoleID
-	Mute                       *bool
-	Deaf                       *bool
-	ChannelID                  *ChannelID
-	CommunicationDisabledUntil *time.Time
+	UserID                      UserID
+	Nick                        *string
+	Roles                       *[]RoleID
+	Mute                        *bool
+	Deaf                        *bool
+	ChannelID                   *ChannelID
+	CommunicationDisabledUntil  *time.Time
+	RemoveCommunicationDisabled *bool
 }
 type AddMemberRole struct {
 	CommandContext
@@ -402,6 +405,9 @@ type DeleteScheduledEvent struct {
 // Command/result methods form the compile-time sealed catalog.
 func resultOf[R any]() (zero R) { return zero }
 
+func (GetCurrentUser) CommandName() string                               { return "get_current_user" }
+func (GetCurrentUser) discordCommand()                                   {}
+func (GetCurrentUser) discordResult() User                               { return User{} }
 func (InspectGuild) CommandName() string                                 { return "inspect_guild" }
 func (InspectGuild) discordCommand()                                     {}
 func (InspectGuild) discordResult() GuildInspection                      { return resultOf[GuildInspection]() }

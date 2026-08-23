@@ -23,6 +23,8 @@ func resolveRoute(command domain.Command) (resolvedRoute, error) {
 	g := url.PathEscape(string(command.GuildScope()))
 	r.major = g
 	switch c := command.(type) {
+	case domain.GetCurrentUser:
+		r.path = "/users/@me"
 	case domain.InspectGuild:
 		r.path = "/guilds/" + g
 	case domain.ListGuildChannels:

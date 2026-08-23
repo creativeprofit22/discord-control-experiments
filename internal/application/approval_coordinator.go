@@ -49,6 +49,14 @@ func (c *ApprovalCoordinator) Issue(ctx context.Context, invocation Invocation, 
 }
 
 func (c *ApprovalCoordinator) IssueReconciliationPlan(ctx context.Context, actor domain.ActorID, guild domain.GuildID, planHash domain.PlanHash, source ConfirmationSource, expiresAt time.Time) (domain.ApprovalGrant, error) {
+	return c.issuePlan(ctx, actor, guild, string(planHash), domain.ApprovalScopeReconciliationPlan, source, expiresAt)
+}
+
+func (c *ApprovalCoordinator) IssueLockdownPlan(ctx context.Context, actor domain.ActorID, guild domain.GuildID, planHash domain.LockdownPlanHash, source ConfirmationSource, expiresAt time.Time) (domain.ApprovalGrant, error) {
+	return c.issuePlan(ctx, actor, guild, string(planHash), domain.ApprovalScopeLockdownPlan, source, expiresAt)
+}
+
+func (c *ApprovalCoordinator) issuePlan(ctx context.Context, actor domain.ActorID, guild domain.GuildID, planHash string, scope domain.ApprovalScopeKind, source ConfirmationSource, expiresAt time.Time) (domain.ApprovalGrant, error) {
 	if actor == "" || guild == "" || len(planHash) != 64 || (source != ConfirmationInteractive && source != ConfirmationInteraction) {
 		return domain.ApprovalGrant{}, &domain.ApprovalError{Reason: "plan is not eligible"}
 	}
@@ -60,5 +68,5 @@ func (c *ApprovalCoordinator) IssueReconciliationPlan(ctx context.Context, actor
 	if !expiresAt.After(now) {
 		return domain.ApprovalGrant{}, &domain.ApprovalError{Reason: "plan approval expired"}
 	}
-	return c.issuer.Issue(ctx, domain.ApprovalGrant{ActorID: actor, GuildID: guild, ScopeKind: domain.ApprovalScopeReconciliationPlan, ScopeHash: string(planHash), ApproverID: actor, IssuedAt: now, ExpiresAt: expiresAt})
+	return c.issuer.Issue(ctx, domain.ApprovalGrant{ActorID: actor, GuildID: guild, ScopeKind: scope, ScopeHash: planHash, ApproverID: actor, IssuedAt: now, ExpiresAt: expiresAt})
 }

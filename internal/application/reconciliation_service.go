@@ -99,7 +99,7 @@ func (s *ReconciliationService) Snapshot(ctx context.Context, request SnapshotRe
 	} else if inspection.OnboardingUnsupported {
 		support = domain.SupportUnavailable
 	}
-	snapshot, err := reconcile.NormalizeSnapshot(reconcile.SnapshotInput{Guild: inspection.Guild, ApplicationID: request.ApplicationID, Channels: inspection.Channels, Roles: inspection.Roles, Webhooks: inspection.Webhooks, ApplicationCommands: inspection.ApplicationCommands, Onboarding: inspection.Onboarding, OnboardingSupport: support, Bindings: bindings, CapturedAt: s.clock.Now()})
+	snapshot, err := reconcile.NormalizeSnapshot(reconcile.SnapshotInput{Guild: inspection.Guild, ApplicationID: request.ApplicationID, Channels: inspection.Channels, Roles: inspection.Roles, Webhooks: inspection.Webhooks, ApplicationCommands: inspection.ApplicationCommands, AutoModerationRules: inspection.AutoModerationRules, Onboarding: inspection.Onboarding, OnboardingSupport: support, Bindings: bindings, CapturedAt: s.clock.Now()})
 	if err != nil {
 		return domain.GuildSnapshot{}, err
 	}

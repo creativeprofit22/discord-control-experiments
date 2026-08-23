@@ -1,0 +1,3 @@
+Usage: discord-control case kick --guild VALUE --input VALUE
+
+moderation.kick

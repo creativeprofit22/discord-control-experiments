@@ -130,6 +130,25 @@ func TestPolicyConfigDefaultsAndStrictValidation(t *testing.T) {
 	}
 }
 
+func TestModerationConfigDefaultsAndRejectsOverlappingEscalation(t *testing.T) {
+	resolved, err := Load(strings.NewReader(valid), resolver{"DISCORD_BOT_TOKEN": canary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Moderation.PolicyVersion != "disabled-v1" || len(resolved.Moderation.ReasonCodes) != 0 || resolved.Moderation.LockdownPlanTTL != "15m" {
+		t.Fatalf("moderation defaults = %#v", resolved.Moderation)
+	}
+	moderation := `,"moderation":{"policyVersion":"policy-1","retention":"720h","maxCasesPerGuild":100,"maxActionsPerCase":10,"maxActionsPerSubjectWindow":10,"maxActionsPerGuildWindow":100,"reasonCodes":["spam"],"quarantineRoleId":"123","protectedOperatorRoleIds":["456"],"maxLockdownOperations":20,"maxLockdownDestructiveOperations":10,"lockdownPlanTtl":"10m","escalationRules":[{"id":"a","priority":1,"eligiblePriorKinds":["warn"],"lookback":"24h","minimumCount":2,"action":"timeout","duration":"1h","maximumApplications":1},{"id":"b","priority":1,"eligiblePriorKinds":["warn","kick"],"lookback":"24h","minimumCount":3,"action":"ban","maximumApplications":1}]}`
+	input := strings.TrimSuffix(valid, "}") + moderation + "}"
+	if _, err := Load(strings.NewReader(input), resolver{"DISCORD_BOT_TOKEN": canary}); err == nil || !strings.Contains(err.Error(), "equal-priority") {
+		t.Fatalf("expected overlapping escalation rejection, got %v", err)
+	}
+	input = strings.Replace(input, `"priority":1,"eligiblePriorKinds":["warn","kick"]`, `"priority":2,"eligiblePriorKinds":["warn","kick"]`, 1)
+	if _, err := Load(strings.NewReader(input), resolver{"DISCORD_BOT_TOKEN": canary}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInteractionJobCapabilitiesLoadAndUnknownFailsClosed(t *testing.T) {
 	const policyConfig = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":false},"observability":{"exporter":"none"},"policy":{"mode":"apply","actors":[{"id":"interaction-operator","principals":[{"adapter":"interactions","subject":"234567890123456789","authenticationMethod":"discord-ed25519"}],"guilds":["123456789012345678"],"capabilities":[%q],"mode":"apply"}]}}`
 

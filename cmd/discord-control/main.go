@@ -38,6 +38,13 @@ type correlationIDGenerator struct{}
 func (correlationIDGenerator) NewCorrelationID() (domain.CorrelationID, error) {
 	return observability.CorrelationID()
 }
+func (correlationIDGenerator) NewModerationID(prefix string) (string, error) {
+	value, err := observability.CorrelationID()
+	if err != nil {
+		return "", err
+	}
+	return prefix + "_" + string(value), nil
+}
 
 func main() { os.Exit(mainExit(os.Args[1:], os.Stderr)) }
 
@@ -152,7 +159,9 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 	ackMissWindow, _ := time.ParseDuration(resolved.SecurityAlerts.AckDeadlineMissWindow)
 	callbackFailureWindow, _ := time.ParseDuration(resolved.SecurityAlerts.CallbackFailureWindow)
 	saturationWindow, _ := time.ParseDuration(resolved.SecurityAlerts.HandlerSaturationWindow)
-	securityOptions := observability.SecurityOptions{DenialThreshold: resolved.SecurityAlerts.DenialThreshold, DenialWindow: denialWindow, DestructiveThreshold: resolved.SecurityAlerts.DestructiveThreshold, DestructiveWindow: destructiveWindow, SignatureFailureThreshold: resolved.SecurityAlerts.SignatureFailureThreshold, SignatureFailureWindow: signatureWindow, AckDeadlineMissThreshold: resolved.SecurityAlerts.AckDeadlineMissThreshold, AckDeadlineMissWindow: ackMissWindow, CallbackFailureThreshold: resolved.SecurityAlerts.CallbackFailureThreshold, CallbackFailureWindow: callbackFailureWindow, HandlerSaturationThreshold: resolved.SecurityAlerts.HandlerSaturationThreshold, HandlerSaturationWindow: saturationWindow}
+	moderationDestructiveWindow, _ := time.ParseDuration(resolved.SecurityAlerts.ModerationDestructiveWindow)
+	lockdownPartialWindow, _ := time.ParseDuration(resolved.SecurityAlerts.LockdownPartialFailureWindow)
+	securityOptions := observability.SecurityOptions{DenialThreshold: resolved.SecurityAlerts.DenialThreshold, DenialWindow: denialWindow, DestructiveThreshold: resolved.SecurityAlerts.DestructiveThreshold, DestructiveWindow: destructiveWindow, SignatureFailureThreshold: resolved.SecurityAlerts.SignatureFailureThreshold, SignatureFailureWindow: signatureWindow, AckDeadlineMissThreshold: resolved.SecurityAlerts.AckDeadlineMissThreshold, AckDeadlineMissWindow: ackMissWindow, CallbackFailureThreshold: resolved.SecurityAlerts.CallbackFailureThreshold, CallbackFailureWindow: callbackFailureWindow, HandlerSaturationThreshold: resolved.SecurityAlerts.HandlerSaturationThreshold, HandlerSaturationWindow: saturationWindow, ModerationDestructiveThreshold: resolved.SecurityAlerts.ModerationDestructiveThreshold, ModerationDestructiveWindow: moderationDestructiveWindow, LockdownPartialFailureThreshold: resolved.SecurityAlerts.LockdownPartialFailureThreshold, LockdownPartialFailureWindow: lockdownPartialWindow}
 	provider, err := observability.New(ctx, observability.Options{Writer: stderr, Exporter: resolved.Observability.Exporter, Endpoint: resolved.Observability.Endpoint, Build: buildinfo.Current(), Redactor: redactor, Security: securityOptions})
 	if err != nil {
 		return application.OperatorResult{}, fmt.Errorf("initialize observability: %w", err)
@@ -194,7 +203,14 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		_ = auditSink.Close()
 		return application.OperatorResult{}, fmt.Errorf("initialize reconciliation service: %w", err)
 	}
+	moderationService, lockdownService, moderationErr := buildModerationServices(discordService, statePaths, resolved.Moderation, redactor, provider)
+	if moderationErr != nil {
+		_ = auditSink.Close()
+		return application.OperatorResult{}, moderationErr
+	}
 	handlers := reconciliationOperatorHandlers(command, resolved, configPath, reconciliationService)
+	addModerationOperatorHandlers(handlers, moderationService, lockdownService)
+
 	jobService, jobErr := application.NewJobService(stateStore, reconciliationService, systemClock{})
 	if jobErr != nil {
 		_ = auditSink.Close()
@@ -266,7 +282,7 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 			mcpLifecycle = mcpServer
 		}
 		if resolved.InteractionsEnabled {
-			interactionTransport, interactionErr := newInteractionTransport(resolved, policyService, healthService, jobService, approvalCoordinator, discordClient, auditSink, provider)
+			interactionTransport, interactionErr := newInteractionTransport(resolved, policyService, healthService, jobService, moderationService, lockdownService, approvalCoordinator, discordClient, auditSink, provider)
 			if interactionErr != nil {
 				_ = auditSink.Close()
 				return application.OperatorResult{}, interactionErr
@@ -324,8 +340,8 @@ type interactionRuntimeTelemetry interface {
 	application.InteractionRegistrationTelemetry
 }
 
-func newInteractionTransport(resolved config.Resolved, policyService application.PolicyEvaluator, health *application.HealthService, jobs *application.JobService, approvals *application.ApprovalCoordinator, discordClient *discordadapter.Client, auditSink application.AuditSink, telemetry interactionRuntimeTelemetry) (application.Lifecycle, error) {
-	interactionService, err := application.NewInteractionService(policyService, health, jobs)
+func newInteractionTransport(resolved config.Resolved, policyService application.PolicyEvaluator, health *application.HealthService, jobs *application.JobService, moderation *application.ModerationService, lockdown *application.LockdownService, approvals *application.ApprovalCoordinator, discordClient *discordadapter.Client, auditSink application.AuditSink, telemetry interactionRuntimeTelemetry) (application.Lifecycle, error) {
+	interactionService, err := application.NewInteractionService(policyService, health, jobs, moderation, lockdown)
 	if err != nil {
 		return nil, err
 	}

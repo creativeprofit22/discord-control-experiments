@@ -66,7 +66,7 @@ type desiredCandidate struct {
 }
 
 func desiredCandidates(desired domain.DesiredGuild) []desiredCandidate {
-	candidates := make([]desiredCandidate, 0, len(desired.Categories)+len(desired.Channels)+len(desired.Roles)+len(desired.Webhooks)+len(desired.ApplicationCommands))
+	candidates := make([]desiredCandidate, 0, len(desired.Categories)+len(desired.Channels)+len(desired.Roles)+len(desired.Webhooks)+len(desired.ApplicationCommands)+len(desired.AutoModerationRules))
 	for _, category := range desired.Categories {
 		candidates = append(candidates, desiredCandidate{domain.StableResourceRef{Kind: domain.ResourceCategory, LogicalID: category.LogicalID}, category.Name, int(discordCategoryType)})
 	}
@@ -82,16 +82,20 @@ func desiredCandidates(desired domain.DesiredGuild) []desiredCandidate {
 	for _, command := range desired.ApplicationCommands {
 		candidates = append(candidates, desiredCandidate{domain.StableResourceRef{Kind: domain.ResourceApplicationCommand, LogicalID: command.LogicalID}, command.Name, int(command.Type)})
 	}
+	for _, rule := range desired.AutoModerationRules {
+		candidates = append(candidates, desiredCandidate{domain.StableResourceRef{Kind: domain.ResourceAutoModerationRule, LogicalID: rule.LogicalID}, rule.Name, int(rule.TriggerType)})
+	}
 	sort.Slice(candidates, func(i, j int) bool { return refLess(candidates[i].ref, candidates[j].ref) })
 	return candidates
 }
 
 func allSnapshotResources(snapshot domain.GuildSnapshot) []domain.SnapshotResource {
-	resources := make([]domain.SnapshotResource, 0, len(snapshot.Categories)+len(snapshot.Channels)+len(snapshot.Roles)+len(snapshot.Webhooks)+len(snapshot.ApplicationCommands))
+	resources := make([]domain.SnapshotResource, 0, len(snapshot.Categories)+len(snapshot.Channels)+len(snapshot.Roles)+len(snapshot.Webhooks)+len(snapshot.ApplicationCommands)+len(snapshot.AutoModerationRules))
 	resources = append(resources, snapshot.Categories...)
 	resources = append(resources, snapshot.Channels...)
 	resources = append(resources, snapshot.Roles...)
 	resources = append(resources, snapshot.Webhooks...)
 	resources = append(resources, snapshot.ApplicationCommands...)
+	resources = append(resources, snapshot.AutoModerationRules...)
 	return resources
 }

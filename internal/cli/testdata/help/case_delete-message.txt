@@ -1,0 +1,3 @@
+Usage: discord-control case delete-message --guild VALUE --input VALUE
+
+moderation.message_delete

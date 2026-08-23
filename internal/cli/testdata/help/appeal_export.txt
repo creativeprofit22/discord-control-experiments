@@ -1,0 +1,3 @@
+Usage: discord-control appeal export --guild VALUE --input VALUE
+
+Export subject-visible appeal data

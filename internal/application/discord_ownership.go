@@ -17,6 +17,7 @@ const (
 	ResourceInvite             = domain.ResourceInvite
 	ResourceApplicationCommand = domain.ResourceApplicationCommand
 	ResourceScheduledEvent     = domain.ResourceScheduledEvent
+	ResourceAutoModerationRule = domain.ResourceAutoModerationRule
 )
 
 type ResourceOwnershipStore interface {

@@ -1,7 +1,7 @@
 # Configuration reference
 
 Owner: Maintainers
-Last reviewed: 2026-08-22
+Last reviewed: 2026-08-23
 
 Configuration is UTF-8 JSON capped at 65,536 bytes and validated before startup against [schema v1](../../config/schema/v1.schema.json). Unknown fields, duplicate keys, trailing JSON, missing fields, unsupported versions, duplicate grants, wildcards, invalid modes/capabilities/durations/thresholds, and escaping audit paths fail closed.
 
@@ -9,7 +9,9 @@ Use [the committed example](../../config/example.v1.json). Bot tokens and option
 
 `policy.mode` is the operator ceiling: `read_only`, `dry_run`, or `apply`. Actors require stable ID, one or more exact principals, explicit numeric guild IDs, explicit capabilities, and a mode no higher than the ceiling. No actors means deny all. Older v1 files without security sections receive deny-all/read-only, 15-minute approval TTL, contained `audit/events.jsonl`, bounded retention, and alert defaults.
 
-`approvals.maxTtl` is positive and at most 24 hours. `audit.path` and `reconciliation.stateDirectory` are relative to the configuration directory and traversal is rejected. Reconciliation defaults are `state`, 100 operations, 10 destructive operations, and 30 retention days; configured limits are bounded and destructive count cannot exceed total count. `securityAlerts` configures positive repeated-denial, destructive-operation, interaction-signature-failure, acknowledgement-miss, callback-failure, and saturation thresholds with one-second to 24-hour windows.
+`approvals.maxTtl` is positive and at most 24 hours. `audit.path` and `reconciliation.stateDirectory` are relative to the configuration directory and traversal is rejected. Reconciliation defaults are `state`, 100 operations, 10 destructive operations, and 30 retention days; configured limits are bounded and destructive count cannot exceed total count. `securityAlerts` configures positive repeated-denial, destructive-operation, moderation-destructive-spike, lockdown-partial-failure, interaction-signature-failure, acknowledgement-miss, callback-failure, and saturation thresholds with one-second to 24-hour windows.
+
+`moderation` configures a required policy version, retention, case/action caps, reason-code allowlist, optional quarantine role, protected operator roles, bounded deterministic escalation rules, lockdown operation caps, and a 1–60 minute plan TTL. Omission installs disabled defaults: no reason codes, no protected roles, and no escalation rules. Equal-priority overlapping rules, managed/protected role conflicts, Discord-limit violations, and invalid durations fail startup.
 
 `interactions.enabled: true` requires one numeric application ID, one/two distinct lowercase Ed25519 public keys, exactly one guild/global registration scope, exact `/interactions` path, and direct TLS or trusted-proxy CIDRs. Request/body/queue/worker/ack/work/callback/dedup/skew limits are bounded; dedup TTL is at least Discord's 15-minute token lifetime. Diagnostics expose only enabled state, TLS mode, and registration scope. See [interaction setup](../interactions/setup.md).
 

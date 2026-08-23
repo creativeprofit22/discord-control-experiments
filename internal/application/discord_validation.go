@@ -162,6 +162,10 @@ func validateTypedValues(value reflect.Value, path string) error {
 
 func validateSpecific(command domain.Command) error {
 	switch c := command.(type) {
+	case domain.ModifyMember:
+		if c.RemoveCommunicationDisabled != nil && *c.RemoveCommunicationDisabled && c.CommunicationDisabledUntil != nil {
+			return validation("communication_disabled_until", "cannot set and remove together")
+		}
 	case domain.CreateChannel:
 		if err := boundedName("name", c.Name, 1, MaxChannelNameLength); err != nil {
 			return err

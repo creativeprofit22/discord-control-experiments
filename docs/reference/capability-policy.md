@@ -1,7 +1,7 @@
 # Capability policy
 
 Owner: Security and maintainers
-Last reviewed: 2026-08-22
+Last reviewed: 2026-08-23
 
 ## Identity and evaluation
 
@@ -11,9 +11,13 @@ Every transport attempt passes `dispatchDiscord` in this order: sealed command a
 
 `read_only` removes mutations before discovery and rejects any stale mutation at runtime. `dry_run` returns a content-free `OperationPlan` with no network, baseline, reconciliation, idempotency claim, or approval consumption. `apply` is the only network-capable mode. Invocation mode can be lower than the actor and operator ceilings, never higher.
 
+## Moderation capabilities
+
+Case read/write, evidence write/export, warn, timeout, kick, ban, message deletion, quarantine, invite control, escalation evaluation, and lockdown plan/apply/recover are independent grants. A typed action maps to exactly one moderation capability; internal hierarchy reads use that same decision. Raw member/message/invite capabilities do not write cases. Lockdown apply/recover consume a single-use `lockdown_plan` approval bound to actor, guild, and canonical plan hash.
+
 ## Complete command matrix
 
-Commands not listed by the sealed 60-entry registry do not exist at runtime. MCP discovery further intersects this registry with configured domain toolsets, the fixed principal/guild/mode policy decision, and independent read-only filtering before lexical registration.
+Raw Discord commands not listed by the sealed 60-entry registry do not exist at runtime. Typed moderation operations use a separate sealed application registry and cannot select Discord routes. MCP discovery intersects both registries with configured domain toolsets, the fixed principal/guild/mode policy decision, and independent read-only filtering before lexical registration.
 
 | Capability | Read operations | Mutation operations | Mandatory destructive classes |
 |---|---|---|---|
