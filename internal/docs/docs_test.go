@@ -50,6 +50,9 @@ func TestDocumentationContract(t *testing.T) {
 		if relative == "docs/reference/configuration.md" || relative == "docs/reference/capability-policy.md" {
 			expectedReviewDate = "2026-08-22"
 		}
+		if relative == "docs/adr/0003-dependency-update-policy.md" {
+			expectedReviewDate = "2026-08-23"
+		}
 		if !strings.Contains(text, "Owner: ") || !strings.Contains(text, "Last reviewed: "+expectedReviewDate) {
 			t.Errorf("%s lacks current ownership metadata", relative)
 		}

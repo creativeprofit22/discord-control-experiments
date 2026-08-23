@@ -11,7 +11,7 @@ import (
 func TestPinnedDependenciesMatchRuntimeDecision(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
 	files := map[string][]string{
-		"go.mod": {"go 1.27.0", "github.com/modelcontextprotocol/go-sdk v1.7.0", "go.opentelemetry.io/otel v1.44.0"},
+		"go.mod": {"go 1.27.0", "github.com/modelcontextprotocol/go-sdk v1.7.0", "go.opentelemetry.io/otel v1.45.0"},
 		"benchmarks/runtime/typescript-candidate/package.json": {`"@modelcontextprotocol/server": "2.0.0"`, `"discord.js": "14.27.0"`, `"typescript": "6.0.3"`, `"packageManager": "pnpm@10.26.1"`},
 		"docs/adr/0001-runtime-selection.md":                   {"Select Go", "Go | yes | 1.061063", "v0.29.0", "v1.7.0", "14.27.0", "2.0.0"},
 		"docs/adr/0004-discord-rest-transport.md":              {"net/http", "DiscordGo v0.29.0", "future Gateway runtime"},
