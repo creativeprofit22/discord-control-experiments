@@ -16,11 +16,25 @@
     "maxConcurrentCalls": 4,
     "callTimeout": "30s"
   },
+  "interactions": {
+    "enabled": false,
+    "listenAddress": "127.0.0.1:8443",
+    "path": "/interactions",
+    "maxBodyBytes": 65536,
+    "maxConcurrentRequests": 32,
+    "queueCapacity": 64,
+    "workerCount": 4,
+    "ackDeadline": "2500ms",
+    "workTimeout": "2m",
+    "callbackTimeout": "10s",
+    "dedupTtl": "15m",
+    "timestampSkew": "5m"
+  },
   "observability": {
     "exporter": "none"
   },
   "policy": {
-    "mode": "read_only",
+    "mode": "apply",
     "actors": [
       {
         "id": "mcp-reader",
@@ -34,6 +48,19 @@
         "guilds": ["123456789012345678"],
         "capabilities": ["guild.inspect", "channel.read", "role.read"],
         "mode": "read_only"
+      },
+      {
+        "id": "interaction-job-operator",
+        "principals": [
+          {
+            "adapter": "interactions",
+            "subject": "234567890123456789",
+            "authenticationMethod": "discord-ed25519"
+          }
+        ],
+        "guilds": ["123456789012345678"],
+        "capabilities": ["job.read", "job.cancel", "job.resume"],
+        "mode": "apply"
       }
     ]
   },
@@ -49,6 +76,14 @@
     "denialThreshold": 10,
     "denialWindow": "5m",
     "destructiveThreshold": 5,
-    "destructiveWindow": "5m"
+    "destructiveWindow": "5m",
+    "signatureFailureThreshold": 20,
+    "signatureFailureWindow": "5m",
+    "ackDeadlineMissThreshold": 3,
+    "ackDeadlineMissWindow": "5m",
+    "callbackFailureThreshold": 5,
+    "callbackFailureWindow": "5m",
+    "handlerSaturationThreshold": 5,
+    "handlerSaturationWindow": "5m"
   }
 }

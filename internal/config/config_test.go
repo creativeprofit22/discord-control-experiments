@@ -130,6 +130,26 @@ func TestPolicyConfigDefaultsAndStrictValidation(t *testing.T) {
 	}
 }
 
+func TestInteractionJobCapabilitiesLoadAndUnknownFailsClosed(t *testing.T) {
+	const policyConfig = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":false},"observability":{"exporter":"none"},"policy":{"mode":"apply","actors":[{"id":"interaction-operator","principals":[{"adapter":"interactions","subject":"234567890123456789","authenticationMethod":"discord-ed25519"}],"guilds":["123456789012345678"],"capabilities":[%q],"mode":"apply"}]}}`
+
+	for _, capability := range []string{"job.read", "job.cancel", "job.resume"} {
+		t.Run(capability, func(t *testing.T) {
+			resolved, err := Load(strings.NewReader(fmt.Sprintf(policyConfig, capability)), resolver{"DISCORD_BOT_TOKEN": canary})
+			if err != nil {
+				t.Fatalf("load %s capability: %v", capability, err)
+			}
+			if got := resolved.Policy.Actors[0].Capabilities; len(got) != 1 || got[0] != capability {
+				t.Fatalf("loaded capabilities = %#v, want [%q]", got, capability)
+			}
+		})
+	}
+
+	if _, err := Load(strings.NewReader(fmt.Sprintf(policyConfig, "job.unknown")), resolver{"DISCORD_BOT_TOKEN": canary}); err == nil {
+		t.Fatal("unknown job capability must be rejected")
+	}
+}
+
 func FuzzConfigParser(f *testing.F) {
 	f.Add([]byte(valid))
 	f.Add([]byte(`{"version":1}`))

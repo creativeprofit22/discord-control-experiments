@@ -2,10 +2,12 @@ package config
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -24,6 +26,9 @@ func validate(file File) error {
 		return errors.New("mcp enabled field is required")
 	}
 	if err := validateMCP(file.MCP); err != nil {
+		return err
+	}
+	if err := validateInteractions(file.Interactions, file.SecretEnvironmentAllowlist); err != nil {
 		return err
 	}
 	if !environmentAllowed(file.Discord.Token.Name, file.SecretEnvironmentAllowlist) {
@@ -94,6 +99,89 @@ func validateMCP(value MCP) error {
 	return nil
 }
 
+func validateInteractions(value Interactions, allowlist []string) error {
+	if value.Enabled == nil {
+		return errors.New("interactions enabled field is required")
+	}
+	if value.Path != "/interactions" {
+		return errors.New("interactions path must be /interactions")
+	}
+	if value.MaxBodyBytes < 1024 || value.MaxBodyBytes > 1<<20 {
+		return errors.New("interactions maxBodyBytes must be between 1024 and 1048576")
+	}
+	if value.MaxConcurrentRequests < 1 || value.MaxConcurrentRequests > 1024 || value.QueueCapacity < 1 || value.QueueCapacity > 4096 || value.WorkerCount < 1 || value.WorkerCount > 128 {
+		return errors.New("invalid interactions concurrency limits")
+	}
+	ack, e1 := time.ParseDuration(value.AckDeadline)
+	work, e2 := time.ParseDuration(value.WorkTimeout)
+	callback, e3 := time.ParseDuration(value.CallbackTimeout)
+	dedup, e4 := time.ParseDuration(value.DedupTTL)
+	skew, e5 := time.ParseDuration(value.TimestampSkew)
+	if e1 != nil || ack < 100*time.Millisecond || ack >= 3*time.Second || e2 != nil || work < time.Second || work > 15*time.Minute || e3 != nil || callback < time.Second || callback > time.Minute || e4 != nil || dedup < 15*time.Minute || dedup > 24*time.Hour || e5 != nil || skew < time.Minute || skew > 15*time.Minute {
+		return errors.New("invalid interactions timeout limits")
+	}
+	if !*value.Enabled {
+		if len(value.SigningPublicKeys) > 0 && len(value.SigningPublicKeys) > 2 {
+			return errors.New("interactions accepts at most two signing public keys")
+		}
+		return nil
+	}
+	if !validSnowflake(value.ApplicationID) {
+		return errors.New("enabled interactions requires a valid applicationId")
+	}
+	if len(value.SigningPublicKeys) < 1 || len(value.SigningPublicKeys) > 2 {
+		return errors.New("enabled interactions requires one or two signing public keys")
+	}
+	seenKeys := map[string]bool{}
+	for _, encoded := range value.SigningPublicKeys {
+		decoded, err := hex.DecodeString(encoded)
+		if err != nil || len(decoded) != 32 || strings.ToLower(encoded) != encoded || seenKeys[encoded] {
+			return errors.New("interactions signing public keys must be distinct lowercase 64-character hex")
+		}
+		seenKeys[encoded] = true
+	}
+	if value.Registration.Scope == "guild" {
+		if !validSnowflake(value.Registration.GuildID) {
+			return errors.New("guild interaction registration requires a valid guildId")
+		}
+	} else if value.Registration.Scope == "global" {
+		if value.Registration.GuildID != "" {
+			return errors.New("global interaction registration forbids guildId")
+		}
+	} else {
+		return errors.New("enabled interactions registration scope must be guild or global")
+	}
+	host, _, err := net.SplitHostPort(value.ListenAddress)
+	if err != nil || host == "" {
+		return errors.New("interactions listenAddress must include an explicit host and port")
+	}
+	if value.TLS.Mode == "direct" {
+		if value.TLS.Certificate.Source != "env" || value.TLS.PrivateKey.Source != "env" || !environmentAllowed(value.TLS.Certificate.Name, allowlist) || !environmentAllowed(value.TLS.PrivateKey.Name, allowlist) {
+			return errors.New("direct interactions TLS requires allowlisted environment certificate and private key references")
+		}
+		if len(value.TLS.TrustedProxyCIDRs) != 0 {
+			return errors.New("direct interactions TLS forbids trusted proxy CIDRs")
+		}
+	} else if value.TLS.Mode == "trusted_proxy" {
+		if len(value.TLS.TrustedProxyCIDRs) < 1 || len(value.TLS.TrustedProxyCIDRs) > 32 {
+			return errors.New("trusted proxy interactions TLS requires one to 32 CIDRs")
+		}
+		seen := map[string]bool{}
+		for _, cidr := range value.TLS.TrustedProxyCIDRs {
+			if _, network, err := net.ParseCIDR(cidr); err != nil || network.String() != cidr || seen[cidr] {
+				return errors.New("invalid or duplicate trusted proxy CIDR")
+			}
+			seen[cidr] = true
+		}
+		if value.TLS.Certificate.Name != "" || value.TLS.PrivateKey.Name != "" {
+			return errors.New("trusted proxy mode forbids direct TLS secrets")
+		}
+	} else {
+		return errors.New("enabled interactions TLS mode must be direct or trusted_proxy")
+	}
+	return nil
+}
+
 func environmentAllowed(name string, configured []string) bool {
 	if _, ok := allowedEnvironmentSecrets[name]; ok {
 		return true
@@ -128,7 +216,7 @@ var validCapabilities = map[string]bool{
 	"member.read": true, "member.moderate": true, "message.read": true, "message.manage": true, "webhook.read": true,
 	"webhook.manage": true, "invite.read": true, "invite.manage": true, "application_command.read": true,
 	"application_command.manage": true, "onboarding.read": true, "onboarding.manage": true, "scheduled_event.read": true, "scheduled_event.manage": true,
-	"auto_moderation.read": true, "auto_moderation.manage": true,
+	"auto_moderation.read": true, "auto_moderation.manage": true, "job.read": true, "job.cancel": true, "job.resume": true,
 }
 
 func validatePolicy(policy Policy) error {
@@ -210,10 +298,13 @@ func validateSecuritySettings(approvals Approvals, audit Audit, alerts SecurityA
 	if audit.RetentionDays < 1 || audit.RetentionDays > 3650 || audit.MaxBytes < 64<<10 || audit.MaxBytes > 10<<30 {
 		return errors.New("invalid audit retention settings")
 	}
-	denialWindow, err1 := time.ParseDuration(alerts.DenialWindow)
-	destructiveWindow, err2 := time.ParseDuration(alerts.DestructiveWindow)
-	if err1 != nil || err2 != nil || alerts.DenialThreshold <= 0 || alerts.DenialThreshold > 10000 || alerts.DestructiveThreshold <= 0 || alerts.DestructiveThreshold > 10000 || denialWindow < time.Second || denialWindow > 24*time.Hour || destructiveWindow < time.Second || destructiveWindow > 24*time.Hour {
-		return errors.New("invalid security alert thresholds")
+	thresholds := []int{alerts.DenialThreshold, alerts.DestructiveThreshold, alerts.SignatureFailureThreshold, alerts.AckDeadlineMissThreshold, alerts.CallbackFailureThreshold, alerts.HandlerSaturationThreshold}
+	windows := []string{alerts.DenialWindow, alerts.DestructiveWindow, alerts.SignatureFailureWindow, alerts.AckDeadlineMissWindow, alerts.CallbackFailureWindow, alerts.HandlerSaturationWindow}
+	for i, threshold := range thresholds {
+		window, err := time.ParseDuration(windows[i])
+		if err != nil || threshold <= 0 || threshold > 10000 || window < time.Second || window > 24*time.Hour {
+			return errors.New("invalid security alert thresholds")
+		}
 	}
 	return nil
 }

@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +22,7 @@ import (
 	"github.com/ken-kai/discord-control-experiments/internal/config"
 	discordadapter "github.com/ken-kai/discord-control-experiments/internal/discord"
 	"github.com/ken-kai/discord-control-experiments/internal/domain"
+	interactionadapter "github.com/ken-kai/discord-control-experiments/internal/interactions"
 	mcpadapter "github.com/ken-kai/discord-control-experiments/internal/mcp"
 	"github.com/ken-kai/discord-control-experiments/internal/observability"
 	"github.com/ken-kai/discord-control-experiments/internal/policy"
@@ -144,7 +148,12 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 	}
 	denialWindow, _ := time.ParseDuration(resolved.SecurityAlerts.DenialWindow)
 	destructiveWindow, _ := time.ParseDuration(resolved.SecurityAlerts.DestructiveWindow)
-	provider, err := observability.New(ctx, observability.Options{Writer: stderr, Exporter: resolved.Observability.Exporter, Endpoint: resolved.Observability.Endpoint, Build: buildinfo.Current(), Redactor: redactor, Security: observability.SecurityOptions{DenialThreshold: resolved.SecurityAlerts.DenialThreshold, DenialWindow: denialWindow, DestructiveThreshold: resolved.SecurityAlerts.DestructiveThreshold, DestructiveWindow: destructiveWindow}})
+	signatureWindow, _ := time.ParseDuration(resolved.SecurityAlerts.SignatureFailureWindow)
+	ackMissWindow, _ := time.ParseDuration(resolved.SecurityAlerts.AckDeadlineMissWindow)
+	callbackFailureWindow, _ := time.ParseDuration(resolved.SecurityAlerts.CallbackFailureWindow)
+	saturationWindow, _ := time.ParseDuration(resolved.SecurityAlerts.HandlerSaturationWindow)
+	securityOptions := observability.SecurityOptions{DenialThreshold: resolved.SecurityAlerts.DenialThreshold, DenialWindow: denialWindow, DestructiveThreshold: resolved.SecurityAlerts.DestructiveThreshold, DestructiveWindow: destructiveWindow, SignatureFailureThreshold: resolved.SecurityAlerts.SignatureFailureThreshold, SignatureFailureWindow: signatureWindow, AckDeadlineMissThreshold: resolved.SecurityAlerts.AckDeadlineMissThreshold, AckDeadlineMissWindow: ackMissWindow, CallbackFailureThreshold: resolved.SecurityAlerts.CallbackFailureThreshold, CallbackFailureWindow: callbackFailureWindow, HandlerSaturationThreshold: resolved.SecurityAlerts.HandlerSaturationThreshold, HandlerSaturationWindow: saturationWindow}
+	provider, err := observability.New(ctx, observability.Options{Writer: stderr, Exporter: resolved.Observability.Exporter, Endpoint: resolved.Observability.Endpoint, Build: buildinfo.Current(), Redactor: redactor, Security: securityOptions})
 	if err != nil {
 		return application.OperatorResult{}, fmt.Errorf("initialize observability: %w", err)
 	}
@@ -227,33 +236,49 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		return application.OperatorResult{}, coordinatorErr
 	}
 	if command.Name == "run" {
-		mcpPrincipal := domain.Principal{Adapter: "mcp", Subject: "local-stdio", AuthenticationMethod: "os-process"}
-		mcpActor, actorErr := configuredActor(resolved.Policy, mcpPrincipal)
-		if actorErr != nil {
+		if !resolved.MCPEnabled && !resolved.InteractionsEnabled {
 			_ = auditSink.Close()
-			return application.OperatorResult{}, actorErr
+			return application.OperatorResult{}, errors.New("run requires MCP and/or interactions to be enabled")
 		}
-		callTimeout, timeoutErr := time.ParseDuration(resolved.MCP.CallTimeout)
-		if timeoutErr != nil {
-			_ = auditSink.Close()
-			return application.OperatorResult{}, timeoutErr
-		}
-		toolsets := make([]application.Toolset, len(resolved.MCP.Toolsets))
-		for index, value := range resolved.MCP.Toolsets {
-			toolsets[index] = application.Toolset(value)
-		}
-		mcpServer, mcpErr := mcpadapter.New(mcpadapter.Options{Enabled: resolved.MCPEnabled, ImplementationVersion: buildinfo.Version, GuildID: domain.GuildID(resolved.MCP.GuildID), ActorID: mcpActor, Mode: domain.ExecutionMode(resolved.MCP.Mode), Toolsets: toolsets, ReadOnly: *resolved.MCP.ReadOnly, MaxMessageBytes: resolved.MCP.MaxMessageBytes, MaxConcurrentCalls: resolved.MCP.MaxConcurrentCalls, CallTimeout: callTimeout, Logger: provider.Logger, Input: os.Stdin, Output: stdout, Policy: policyService, Operator: operatorService, Approval: approvalCoordinator, Observer: provider, Clock: time.Now, Correlation: func() domain.CorrelationID {
-			id, valueErr := observability.CorrelationID()
-			if valueErr != nil {
-				return ""
+		var mcpLifecycle application.Lifecycle
+		var interactionLifecycle application.Lifecycle
+		if resolved.MCPEnabled {
+			mcpPrincipal := domain.Principal{Adapter: "mcp", Subject: "local-stdio", AuthenticationMethod: "os-process"}
+			mcpActor, actorErr := configuredActor(resolved.Policy, mcpPrincipal)
+			if actorErr != nil {
+				_ = auditSink.Close()
+				return application.OperatorResult{}, actorErr
 			}
-			return id
-		}})
-		if mcpErr != nil {
-			_ = auditSink.Close()
-			return application.OperatorResult{}, mcpErr
+			callTimeout, timeoutErr := time.ParseDuration(resolved.MCP.CallTimeout)
+			if timeoutErr != nil {
+				_ = auditSink.Close()
+				return application.OperatorResult{}, timeoutErr
+			}
+			toolsets := make([]application.Toolset, len(resolved.MCP.Toolsets))
+			for index, value := range resolved.MCP.Toolsets {
+				toolsets[index] = application.Toolset(value)
+			}
+			mcpServer, mcpErr := mcpadapter.New(mcpadapter.Options{Enabled: true, ImplementationVersion: buildinfo.Version, GuildID: domain.GuildID(resolved.MCP.GuildID), ActorID: mcpActor, Mode: domain.ExecutionMode(resolved.MCP.Mode), Toolsets: toolsets, ReadOnly: *resolved.MCP.ReadOnly, MaxMessageBytes: resolved.MCP.MaxMessageBytes, MaxConcurrentCalls: resolved.MCP.MaxConcurrentCalls, CallTimeout: callTimeout, Logger: provider.Logger, Input: os.Stdin, Output: stdout, Policy: policyService, Operator: operatorService, Approval: approvalCoordinator, Observer: provider, Clock: time.Now, Correlation: func() domain.CorrelationID { id, _ := observability.CorrelationID(); return id }})
+			if mcpErr != nil {
+				_ = auditSink.Close()
+				return application.OperatorResult{}, mcpErr
+			}
+			mcpLifecycle = mcpServer
 		}
-		app, appErr := application.New(discordClient, mcpServer, provider, systemClock{}, observability.CorrelationID, discordService)
+		if resolved.InteractionsEnabled {
+			interactionTransport, interactionErr := newInteractionTransport(resolved, policyService, healthService, jobService, approvalCoordinator, discordClient, auditSink, provider)
+			if interactionErr != nil {
+				_ = auditSink.Close()
+				return application.OperatorResult{}, interactionErr
+			}
+			interactionLifecycle = interactionTransport
+		}
+		lifecycles, lifecycleErr := runtimeLifecycles(discordClient, resolved.MCPEnabled, mcpLifecycle, resolved.InteractionsEnabled, interactionLifecycle)
+		if lifecycleErr != nil {
+			_ = auditSink.Close()
+			return application.OperatorResult{}, lifecycleErr
+		}
+		app, appErr := application.NewWithLifecycles(lifecycles, provider, systemClock{}, observability.CorrelationID, discordService)
 		if appErr != nil {
 			_ = auditSink.Close()
 			return application.OperatorResult{}, appErr
@@ -277,6 +302,105 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return result, errors.Join(dispatchErr, provider.Shutdown(shutdownCtx), auditSink.Close())
+}
+
+func runtimeLifecycles(discord application.Lifecycle, mcpEnabled bool, mcp application.Lifecycle, interactionsEnabled bool, interactions application.Lifecycle) ([]application.Lifecycle, error) {
+	if discord == nil || mcpEnabled != (mcp != nil) || interactionsEnabled != (interactions != nil) {
+		return nil, errors.New("runtime lifecycle composition is inconsistent")
+	}
+	lifecycles := []application.Lifecycle{discord}
+	if mcpEnabled {
+		lifecycles = append(lifecycles, mcp)
+	}
+	if interactionsEnabled {
+		lifecycles = append(lifecycles, interactions)
+	}
+	return lifecycles, nil
+}
+
+type interactionRuntimeTelemetry interface {
+	interactionadapter.InteractionTelemetry
+	interactionadapter.CallbackTelemetry
+	application.InteractionRegistrationTelemetry
+}
+
+func newInteractionTransport(resolved config.Resolved, policyService application.PolicyEvaluator, health *application.HealthService, jobs *application.JobService, approvals *application.ApprovalCoordinator, discordClient *discordadapter.Client, auditSink application.AuditSink, telemetry interactionRuntimeTelemetry) (application.Lifecycle, error) {
+	interactionService, err := application.NewInteractionService(policyService, health, jobs)
+	if err != nil {
+		return nil, err
+	}
+	ackDeadline, _ := time.ParseDuration(resolved.Interactions.AckDeadline)
+	workTimeout, _ := time.ParseDuration(resolved.Interactions.WorkTimeout)
+	callbackTimeout, _ := time.ParseDuration(resolved.Interactions.CallbackTimeout)
+	dedupTTL, _ := time.ParseDuration(resolved.Interactions.DedupTTL)
+	skew, _ := time.ParseDuration(resolved.Interactions.TimestampSkew)
+	verifier, err := interactionadapter.NewVerifier(resolved.Interactions.SigningPublicKeys, skew, time.Now)
+	if err != nil {
+		return nil, err
+	}
+	capacity := resolved.Interactions.QueueCapacity * 4
+	if capacity < resolved.Interactions.MaxConcurrentRequests {
+		capacity = resolved.Interactions.MaxConcurrentRequests
+	}
+	store, err := interactionadapter.NewInteractionStore(capacity, dedupTTL, time.Now)
+	if err != nil {
+		return nil, err
+	}
+	pending, err := interactionadapter.NewPendingStore(capacity, time.Now)
+	if err != nil {
+		return nil, err
+	}
+	executor, err := interactionadapter.NewExecutor(resolved.Interactions.QueueCapacity, resolved.Interactions.WorkerCount, workTimeout)
+	if err != nil {
+		return nil, err
+	}
+	callbackClient, err := interactionadapter.NewCallbackClient(&http.Client{Transport: http.DefaultTransport}, resolved.Interactions.ApplicationID, callbackTimeout, 64<<10, 64<<10, telemetry)
+	if err != nil {
+		return nil, err
+	}
+	renderer, err := interactionadapter.NewRenderer(callbackClient)
+	if err != nil {
+		return nil, err
+	}
+	router, err := interactionadapter.NewRouter(interactionService, approvals, store, pending, executor, renderer, telemetry, 14*time.Minute, time.Now)
+	if err != nil {
+		return nil, err
+	}
+	var certificate *tls.Certificate
+	if resolved.Interactions.TLS.Mode == "direct" {
+		var parsed tls.Certificate
+		err = resolved.InteractionCertificate.Use(func(certificatePEM string) error {
+			return resolved.InteractionPrivateKey.Use(func(privateKeyPEM string) error {
+				value, parseErr := tls.X509KeyPair([]byte(certificatePEM), []byte(privateKeyPEM))
+				if parseErr == nil {
+					parsed = value
+				}
+				return parseErr
+			})
+		})
+		if err != nil {
+			return nil, errors.New("load interactions TLS certificate")
+		}
+		certificate = &parsed
+	}
+	trusted := make([]*net.IPNet, 0, len(resolved.Interactions.TLS.TrustedProxyCIDRs))
+	for _, configured := range resolved.Interactions.TLS.TrustedProxyCIDRs {
+		_, network, parseErr := net.ParseCIDR(configured)
+		if parseErr != nil {
+			return nil, errors.New("parse trusted proxy CIDR")
+		}
+		trusted = append(trusted, network)
+	}
+	server, err := interactionadapter.NewServer(interactionadapter.ServerOptions{ListenAddress: resolved.Interactions.ListenAddress, Path: resolved.Interactions.Path, ApplicationID: resolved.Interactions.ApplicationID, Verifier: verifier, Responder: router, MaxBodyBytes: resolved.Interactions.MaxBodyBytes, MaxConcurrentRequests: resolved.Interactions.MaxConcurrentRequests, AckDeadline: ackDeadline, TLSMode: resolved.Interactions.TLS.Mode, TLSCertificate: certificate, TrustedProxyCIDRs: trusted, Telemetry: telemetry, CorrelationID: observability.CorrelationID})
+	if err != nil {
+		return nil, err
+	}
+	registration, err := application.NewCommandRegistrationService(discordClient, auditSink, systemClock{}, telemetry)
+	if err != nil {
+		return nil, err
+	}
+	scope := application.CommandRegistrationScope{Kind: resolved.Interactions.Registration.Scope, ApplicationID: resolved.Interactions.ApplicationID, GuildID: resolved.Interactions.Registration.GuildID}
+	return interactionadapter.NewTransport(server, executor, registration, scope, observability.CorrelationID)
 }
 
 func ttyConfirmation(stdin *os.File, stderr io.Writer) cli.Confirmation {

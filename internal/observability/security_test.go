@@ -52,6 +52,27 @@ func TestSecurityAlertsImmediateEvents(t *testing.T) {
 	}
 }
 
+func TestInteractionSecurityAlertThresholds(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+	sink := &captureAlertSink{}
+	provider, _ := securityTestProvider(t, SecurityOptions{SignatureFailureThreshold: 2, SignatureFailureWindow: time.Minute, AckDeadlineMissThreshold: 2, AckDeadlineMissWindow: time.Minute, CallbackFailureThreshold: 2, CallbackFailureWindow: time.Minute, HandlerSaturationThreshold: 2, HandlerSaturationWindow: time.Minute, AlertSink: sink, Now: func() time.Time { return now }})
+	for range 2 {
+		provider.RecordVerification(context.Background(), "invalid", -1)
+		provider.ObserveAcknowledgement(context.Background(), "command", time.Millisecond, true)
+		provider.RecordCallback(context.Background(), "failure")
+		provider.RecordSaturation(context.Background())
+	}
+	if sink.count() != 4 {
+		t.Fatalf("interaction threshold alerts = %d", sink.count())
+	}
+	provider.RecordDuplicate(context.Background(), "cached")
+	provider.ObserveDeferred(context.Background(), time.Millisecond, "ok")
+	provider.RecordApproval(context.Background(), "accepted")
+	provider.ObserveQueueDepth(context.Background(), 2)
+	provider.ObserveHandlerActive(context.Background(), 1)
+	provider.RecordRegistration(context.Background(), "updated")
+}
+
 func TestSecurityAlertsThresholdWindows(t *testing.T) {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	nowFn := func() time.Time { return now }

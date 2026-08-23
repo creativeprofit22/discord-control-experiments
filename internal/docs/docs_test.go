@@ -46,7 +46,11 @@ func TestDocumentationContract(t *testing.T) {
 			continue
 		}
 		text := string(content)
-		if !strings.Contains(text, "Owner: ") || !strings.Contains(text, "Last reviewed: 2026-08-21") {
+		expectedReviewDate := "2026-08-21"
+		if relative == "docs/reference/configuration.md" || relative == "docs/reference/capability-policy.md" {
+			expectedReviewDate = "2026-08-22"
+		}
+		if !strings.Contains(text, "Owner: ") || !strings.Contains(text, "Last reviewed: "+expectedReviewDate) {
 			t.Errorf("%s lacks current ownership metadata", relative)
 		}
 		for _, match := range markdownLink.FindAllStringSubmatch(text, -1) {

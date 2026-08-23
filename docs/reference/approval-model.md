@@ -19,8 +19,8 @@ Mandatory classes are delete, bulk delete, ban, kick/removal, role escalation, c
 
 The approval screen must show actor, guild, stable operation, resource kinds, sanitized intent, destructive class, expiry, and operation-hash prefix. It must never show or accept raw bearer secrets as approval evidence. To limit approval fatigue, group no unrelated actions, keep TTL short, require a fresh grant after any command change, and measure latency without approval-ID metric dimensions.
 
-Reconciliation consumes one plan-scoped grant before its first mutation and creates a private authorization context limited to the canonical plan's actor, guild, hash, and operation-ID set.
+Reconciliation consumes one plan-scoped grant before its first mutation and creates a private authorization context limited to the canonical plan's actor, guild, hash, and operation-ID set. Interaction resume additionally binds one-time random button/modal state to the signed Discord user, policy actor, guild, durable run, full plan hash, recoverability, and expiry; the approval ID never enters Discord. Both grants and UI state are process-local and restart-invalidated.
 
 Models cannot self-approve because no issuance tool exists and command arguments cannot select an actor, approver, grant, capability, guild, or execution ceiling. MCP request state is opaque, random, two-minute, one-time, and bound to canonical arguments, operation hash, actor, tool, and guild; accept, reject, expiry, mismatch, and replay consume it. A future remote human adapter requires authenticated approvers, CSRF/session controls where applicable, and separate threat-model review.
 
-See [capability policy](capability-policy.md), [audit retention](audit-retention.md), and [security incident runbook](../runbooks/security-incident.md).
+See the [interaction approval flow](../interactions/approval-flow.md), [capability policy](capability-policy.md), [audit retention](audit-retention.md), and [security incident runbook](../runbooks/security-incident.md).

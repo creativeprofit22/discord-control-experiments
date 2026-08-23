@@ -22,6 +22,25 @@ func New(discord DiscordTransport, mcp MCPTransport, telemetry Telemetry, clock 
 	if discord == nil || mcp == nil || telemetry == nil || clock == nil || correlate == nil {
 		return nil, errors.New("application dependencies are required")
 	}
+	if len(discordService) > 1 {
+		return nil, errors.New("at most one Discord service is allowed")
+	}
+	if len(discordService) == 1 && discordService[0] == nil {
+		return nil, errors.New("discord service is required when supplied")
+	}
+	return NewWithLifecycles([]Lifecycle{discord, mcp}, telemetry, clock, correlate, discordService...)
+}
+
+func NewWithLifecycles(transports []Lifecycle, telemetry Telemetry, clock Clock, correlate func() (domain.CorrelationID, error), discordService ...*DiscordService) (*App, error) {
+	if len(transports) == 0 || telemetry == nil || clock == nil || correlate == nil {
+		return nil, errors.New("application dependencies are required")
+	}
+	copied := append([]Lifecycle(nil), transports...)
+	for _, transport := range copied {
+		if transport == nil {
+			return nil, errors.New("application lifecycle is required")
+		}
+	}
 	var service *DiscordService
 	if len(discordService) > 1 {
 		return nil, errors.New("at most one Discord service is allowed")
@@ -32,7 +51,7 @@ func New(discord DiscordTransport, mcp MCPTransport, telemetry Telemetry, clock 
 		}
 		service = discordService[0]
 	}
-	return &App{transports: []Lifecycle{discord, mcp}, telemetry: telemetry, clock: clock, correlate: correlate, discord: service}, nil
+	return &App{transports: copied, telemetry: telemetry, clock: clock, correlate: correlate, discord: service}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {

@@ -25,12 +25,20 @@ type SecurityAlertSink interface {
 }
 
 type SecurityOptions struct {
-	DenialThreshold      int
-	DenialWindow         time.Duration
-	DestructiveThreshold int
-	DestructiveWindow    time.Duration
-	AlertSink            SecurityAlertSink
-	Now                  func() time.Time
+	DenialThreshold            int
+	DenialWindow               time.Duration
+	DestructiveThreshold       int
+	DestructiveWindow          time.Duration
+	SignatureFailureThreshold  int
+	SignatureFailureWindow     time.Duration
+	AckDeadlineMissThreshold   int
+	AckDeadlineMissWindow      time.Duration
+	CallbackFailureThreshold   int
+	CallbackFailureWindow      time.Duration
+	HandlerSaturationThreshold int
+	HandlerSaturationWindow    time.Duration
+	AlertSink                  SecurityAlertSink
+	Now                        func() time.Time
 }
 
 type loggerAlertSink struct{ logger *slog.Logger }
@@ -44,10 +52,14 @@ type windowState struct {
 	suppressUntil time.Time
 }
 type securityMonitor struct {
-	mu          sync.Mutex
-	denial      windowState
-	destructive windowState
-	options     SecurityOptions
+	mu              sync.Mutex
+	denial          windowState
+	destructive     windowState
+	signature       windowState
+	ackDeadline     windowState
+	callbackFailure windowState
+	saturation      windowState
+	options         SecurityOptions
 }
 
 func newSecurityMonitor(options SecurityOptions, logger *slog.Logger) *securityMonitor {
@@ -62,6 +74,30 @@ func newSecurityMonitor(options SecurityOptions, logger *slog.Logger) *securityM
 	}
 	if options.DestructiveWindow < time.Second || options.DestructiveWindow > 24*time.Hour {
 		options.DestructiveWindow = 5 * time.Minute
+	}
+	if options.SignatureFailureThreshold <= 0 {
+		options.SignatureFailureThreshold = 20
+	}
+	if options.AckDeadlineMissThreshold <= 0 {
+		options.AckDeadlineMissThreshold = 3
+	}
+	if options.CallbackFailureThreshold <= 0 {
+		options.CallbackFailureThreshold = 5
+	}
+	if options.HandlerSaturationThreshold <= 0 {
+		options.HandlerSaturationThreshold = 5
+	}
+	if options.SignatureFailureWindow < time.Second {
+		options.SignatureFailureWindow = 5 * time.Minute
+	}
+	if options.AckDeadlineMissWindow < time.Second {
+		options.AckDeadlineMissWindow = 5 * time.Minute
+	}
+	if options.CallbackFailureWindow < time.Second {
+		options.CallbackFailureWindow = 5 * time.Minute
+	}
+	if options.HandlerSaturationWindow < time.Second {
+		options.HandlerSaturationWindow = 5 * time.Minute
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -88,6 +124,16 @@ func (p *Provider) RecordSecurityEvent(ctx context.Context, event domain.Securit
 	}
 	if event.Kind == "destructive_apply" {
 		p.securityMonitor.record(ctx, &p.securityMonitor.destructive, p.securityMonitor.options.DestructiveThreshold, p.securityMonitor.options.DestructiveWindow, event)
+	}
+	switch event.Kind {
+	case "interaction_signature_failure":
+		p.securityMonitor.record(ctx, &p.securityMonitor.signature, p.securityMonitor.options.SignatureFailureThreshold, p.securityMonitor.options.SignatureFailureWindow, event)
+	case "interaction_ack_deadline_miss":
+		p.securityMonitor.record(ctx, &p.securityMonitor.ackDeadline, p.securityMonitor.options.AckDeadlineMissThreshold, p.securityMonitor.options.AckDeadlineMissWindow, event)
+	case "interaction_callback_failure":
+		p.securityMonitor.record(ctx, &p.securityMonitor.callbackFailure, p.securityMonitor.options.CallbackFailureThreshold, p.securityMonitor.options.CallbackFailureWindow, event)
+	case "interaction_handler_saturation":
+		p.securityMonitor.record(ctx, &p.securityMonitor.saturation, p.securityMonitor.options.HandlerSaturationThreshold, p.securityMonitor.options.HandlerSaturationWindow, event)
 	}
 }
 

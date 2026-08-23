@@ -1,11 +1,11 @@
 # Capability policy
 
 Owner: Security and maintainers
-Last reviewed: 2026-08-21
+Last reviewed: 2026-08-22
 
 ## Identity and evaluation
 
-An adapter supplies `Principal{Adapter, Subject, AuthenticationMethod}` from its authenticated boundary. It cannot supply `ActorID` or grants. Policy maps one exact principal tuple to one configured actor; empty, unknown, duplicate, ambiguous, wildcard, or malformed values deny. Local MCP is stdio-only and uses composition-root subject `local-stdio`; model arguments, trace fields, Discord payloads, and command fields never establish identity.
+An adapter supplies `Principal{Adapter, Subject, AuthenticationMethod}` from its authenticated boundary. It cannot supply `ActorID` or grants. Policy maps one exact principal tuple to one configured actor; empty, unknown, duplicate, ambiguous, wildcard, or malformed values deny. Local MCP is stdio-only and uses composition-root subject `local-stdio`; signed interactions use the exact `interactions/<Discord user ID>/discord-ed25519` principal and signed guild; model arguments, trace fields, Discord payloads, and command fields never establish identity.
 
 Every transport attempt passes `dispatchDiscord` in this order: sealed command and invocation validation; registry and resource ownership validation; principal resolution; guild, capability, mode, destructive-class and resource decision; canonical operation hash; single-use approval consumption when required; durable audit decision; transport; durable completion. Errors and recovered evaluator panics become `policy_error`. Audit precommit failure prevents network access.
 
@@ -36,6 +36,9 @@ Commands not listed by the sealed 60-entry registry do not exist at runtime. MCP
 | `scheduled_event.manage` | — | `create_scheduled_event`, `modify_scheduled_event`, `delete_scheduled_event` | `delete` |
 | `auto_moderation.read` | `list_auto_moderation_rules`, `get_auto_moderation_rule` | — | — |
 | `auto_moderation.manage` | — | `create_auto_moderation_rule`, `modify_auto_moderation_rule`, `delete_auto_moderation_rule` | `delete` |
+| `job.read` | interaction job list/status in the signed guild | — | — |
+| `job.cancel` | — | cancel a durable job after one-time confirmation | — |
+| `job.resume` | review a recoverable job | resume after actor/guild/full-plan-hash approval | plan-scoped approval |
 
 `lockdown` remains a reserved approval-required workflow class; there is no raw `LockdownGuild` request escape hatch. Any role request carrying permissions is conservatively `role_escalation`; requesting Discord `ADMINISTRATOR` is never implicit.
 
@@ -46,7 +49,28 @@ Guild IDs must be explicitly granted. Registry extractors enumerate guild, chann
 ## Example
 
 ```json
-{"policy":{"mode":"apply","actors":[{"id":"reader","principals":[{"adapter":"mcp","subject":"local-stdio","authenticationMethod":"os-process"}],"guilds":["123456789012345678"],"capabilities":["guild.inspect","channel.read"],"mode":"read_only"}]}}
+{
+  "policy": {
+    "mode": "apply",
+    "actors": [
+      {
+        "id": "interaction-job-operator",
+        "principals": [
+          {
+            "adapter": "interactions",
+            "subject": "234567890123456789",
+            "authenticationMethod": "discord-ed25519"
+          }
+        ],
+        "guilds": ["123456789012345678"],
+        "capabilities": ["job.read", "job.cancel", "job.resume"],
+        "mode": "apply"
+      }
+    ]
+  }
+}
 ```
 
-See [Discord permissions](discord-permissions.md), [approval model](approval-model.md), and [configuration](configuration.md).
+This principal is the exact `interactions/<user-id>/discord-ed25519` tuple constructed only after Discord signature verification. Grant `job.read` alone for list/status; `job.cancel` and `job.resume` require `apply` mode and retain their confirmation or approval checks.
+
+Interaction policy/status output reports only the caller's effective mode/capability decision and never internal reasons. See [interaction setup](../interactions/setup.md), [Discord permissions](discord-permissions.md), [approval model](approval-model.md), and [configuration](configuration.md).

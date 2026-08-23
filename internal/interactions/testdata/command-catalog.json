@@ -1,0 +1,104 @@
+[
+  {
+    "type": 1,
+    "name": "discord-control",
+    "description": "Operate Discord control-plane jobs",
+    "options": [
+      {
+        "type": 1,
+        "name": "health",
+        "description": "Check local and Discord health"
+      },
+      {
+        "type": 1,
+        "name": "policy",
+        "description": "Show your effective capability decision",
+        "options": [
+          {
+            "type": 3,
+            "name": "capability",
+            "description": "Capability to evaluate",
+            "required": true,
+            "choices": [
+              {
+                "name": "Guild inspect",
+                "value": "guild.inspect"
+              },
+              {
+                "name": "Job read",
+                "value": "job.read"
+              },
+              {
+                "name": "Job cancel",
+                "value": "job.cancel"
+              },
+              {
+                "name": "Job resume",
+                "value": "job.resume"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": 2,
+        "name": "jobs",
+        "description": "Inspect or control durable jobs",
+        "options": [
+          {
+            "type": 1,
+            "name": "list",
+            "description": "List jobs in this server"
+          },
+          {
+            "type": 1,
+            "name": "status",
+            "description": "Show one job",
+            "options": [
+              {
+                "type": 3,
+                "name": "run_id",
+                "description": "Durable job run ID",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "cancel",
+            "description": "Prepare job cancellation",
+            "options": [
+              {
+                "type": 3,
+                "name": "run_id",
+                "description": "Durable job run ID",
+                "required": true
+              }
+            ]
+          },
+          {
+            "type": 1,
+            "name": "resume",
+            "description": "Review and resume a recoverable job",
+            "options": [
+              {
+                "type": 3,
+                "name": "run_id",
+                "description": "Durable job run ID",
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "default_member_permissions": "32",
+    "dm_permission": false,
+    "integration_types": [
+      0
+    ],
+    "contexts": [
+      0
+    ]
+  }
+]

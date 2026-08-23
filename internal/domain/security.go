@@ -51,6 +51,9 @@ const (
 	CapabilityScheduledEventManage     Capability = "scheduled_event.manage"
 	CapabilityAutoModerationRead       Capability = "auto_moderation.read"
 	CapabilityAutoModerationManage     Capability = "auto_moderation.manage"
+	CapabilityJobRead                  Capability = "job.read"
+	CapabilityJobCancel                Capability = "job.cancel"
+	CapabilityJobResume                Capability = "job.resume"
 )
 
 const (
@@ -212,7 +215,8 @@ func ValidCapability(capability Capability) bool {
 		CapabilityMemberRead, CapabilityMemberModerate, CapabilityMessageRead, CapabilityMessageManage, CapabilityWebhookRead,
 		CapabilityWebhookManage, CapabilityInviteRead, CapabilityInviteManage, CapabilityApplicationCommandRead,
 		CapabilityApplicationCommandManage, CapabilityOnboardingRead, CapabilityOnboardingManage,
-		CapabilityScheduledEventRead, CapabilityScheduledEventManage, CapabilityAutoModerationRead, CapabilityAutoModerationManage:
+		CapabilityScheduledEventRead, CapabilityScheduledEventManage, CapabilityAutoModerationRead, CapabilityAutoModerationManage,
+		CapabilityJobRead, CapabilityJobCancel, CapabilityJobResume:
 		return true
 	default:
 		return false

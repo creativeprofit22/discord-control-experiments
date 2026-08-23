@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ken-kai/discord-control-experiments/internal/application"
 	"github.com/ken-kai/discord-control-experiments/internal/cli"
 	"github.com/ken-kai/discord-control-experiments/internal/config"
 	"github.com/ken-kai/discord-control-experiments/internal/domain"
@@ -66,6 +68,82 @@ func TestRunMCPOnlyActorStartup(t *testing.T) {
 	}
 	if result.Kind != "Runtime" || result.Value.(map[string]string)["status"] != "stopped" {
 		t.Fatalf("startup result = %#v", result)
+	}
+}
+
+type runtimeEventLog struct{ events []string }
+
+type runtimeLifecycle struct {
+	name domain.Adapter
+	log  *runtimeEventLog
+}
+
+func (lifecycle *runtimeLifecycle) Name() domain.Adapter { return lifecycle.name }
+func (lifecycle *runtimeLifecycle) Start(context.Context) error {
+	lifecycle.log.events = append(lifecycle.log.events, "start "+string(lifecycle.name))
+	return nil
+}
+func (lifecycle *runtimeLifecycle) Stop(context.Context) error {
+	lifecycle.log.events = append(lifecycle.log.events, "stop "+string(lifecycle.name))
+	return nil
+}
+
+type runtimeTelemetry struct{}
+
+func (runtimeTelemetry) Observe(ctx context.Context, _ domain.Operation, operation func(context.Context) error) error {
+	return operation(ctx)
+}
+
+type runtimeClock struct{}
+
+func (runtimeClock) Now() time.Time { return time.Unix(1_800_000_000, 0) }
+
+func TestRuntimeCompositionStartsAndStopsInteractionsModesWithoutGateway(t *testing.T) {
+	tests := []struct {
+		name       string
+		mcpEnabled bool
+		wantEvents []string
+	}{
+		{name: "interactions_only", wantEvents: []string{"start discord", "start interactions", "stop interactions", "stop discord"}},
+		{name: "mcp_and_interactions", mcpEnabled: true, wantEvents: []string{"start discord", "start mcp", "start interactions", "stop interactions", "stop mcp", "stop discord"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			log := &runtimeEventLog{}
+			discord := &runtimeLifecycle{name: "discord", log: log}
+			interactions := &runtimeLifecycle{name: "interactions", log: log}
+			var mcp application.Lifecycle
+			if test.mcpEnabled {
+				mcp = &runtimeLifecycle{name: "mcp", log: log}
+			}
+			lifecycles, err := runtimeLifecycles(discord, test.mcpEnabled, mcp, true, interactions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			app, err := application.NewWithLifecycles(lifecycles, runtimeTelemetry{}, runtimeClock{}, func() (domain.CorrelationID, error) { return "runtime-composition", nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			if err := app.Run(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if got, want := strings.Join(log.events, ","), strings.Join(test.wantEvents, ","); got != want {
+				t.Fatalf("lifecycle events = %q, want %q", got, want)
+			}
+			if strings.Contains(strings.Join(log.events, ","), "gateway") {
+				t.Fatal("runtime composition activated Gateway lifecycle")
+			}
+		})
+	}
+}
+
+func TestRuntimeCompositionRejectsDroppedEnabledTransport(t *testing.T) {
+	log := &runtimeEventLog{}
+	_, err := runtimeLifecycles(&runtimeLifecycle{name: "discord", log: log}, false, nil, true, nil)
+	if err == nil {
+		t.Fatal("missing enabled interactions lifecycle was accepted")
 	}
 }
 

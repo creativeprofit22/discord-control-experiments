@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/ken-kai/discord-control-experiments/internal/application"
@@ -37,35 +38,49 @@ type Options struct {
 }
 
 type Provider struct {
-	Logger                    *slog.Logger
-	TracerProvider            *sdktrace.TracerProvider
-	MeterProvider             *sdkmetric.MeterProvider
-	tracer                    trace.Tracer
-	counter                   metric.Int64Counter
-	duration                  metric.Float64Histogram
-	discordRequests           metric.Int64Counter
-	discordDuration           metric.Float64Histogram
-	discordRateLimitWait      metric.Float64Histogram
-	discordRetries            metric.Int64Counter
-	discordCancellations      metric.Int64Counter
-	discordPartial            metric.Int64Counter
-	cliFailures               metric.Int64Counter
-	mcpInvocations            metric.Int64Counter
-	mcpDuration               metric.Float64Histogram
-	securityEvents            metric.Int64Counter
-	approvalLatency           metric.Float64Histogram
-	reconciliationPlanSize    metric.Int64Histogram
-	reconciliationRisk        metric.Int64Counter
-	reconciliationDrift       metric.Int64Counter
-	reconciliationConflicts   metric.Int64Counter
-	reconciliationStepLatency metric.Float64Histogram
-	reconciliationRetries     metric.Int64Counter
-	reconciliationPartial     metric.Int64Counter
-	reconciliationResumes     metric.Int64Counter
-	reconciliationOutcomes    metric.Int64Counter
-	securityMonitor           *securityMonitor
-	build                     buildinfo.Info
-	redactor                  *Redactor
+	Logger                        *slog.Logger
+	TracerProvider                *sdktrace.TracerProvider
+	MeterProvider                 *sdkmetric.MeterProvider
+	tracer                        trace.Tracer
+	counter                       metric.Int64Counter
+	duration                      metric.Float64Histogram
+	discordRequests               metric.Int64Counter
+	discordDuration               metric.Float64Histogram
+	discordRateLimitWait          metric.Float64Histogram
+	discordRetries                metric.Int64Counter
+	discordCancellations          metric.Int64Counter
+	discordPartial                metric.Int64Counter
+	cliFailures                   metric.Int64Counter
+	mcpInvocations                metric.Int64Counter
+	mcpDuration                   metric.Float64Histogram
+	securityEvents                metric.Int64Counter
+	approvalLatency               metric.Float64Histogram
+	reconciliationPlanSize        metric.Int64Histogram
+	reconciliationRisk            metric.Int64Counter
+	reconciliationDrift           metric.Int64Counter
+	reconciliationConflicts       metric.Int64Counter
+	reconciliationStepLatency     metric.Float64Histogram
+	reconciliationRetries         metric.Int64Counter
+	reconciliationPartial         metric.Int64Counter
+	reconciliationResumes         metric.Int64Counter
+	reconciliationOutcomes        metric.Int64Counter
+	interactionVerification       metric.Int64Counter
+	interactionAckDuration        metric.Float64Histogram
+	interactionDeadlineMisses     metric.Int64Counter
+	interactionDuplicates         metric.Int64Counter
+	interactionDeferred           metric.Float64Histogram
+	interactionCallbacks          metric.Int64Counter
+	interactionCallbackDuration   metric.Float64Histogram
+	interactionApprovals          metric.Int64Counter
+	interactionSaturation         metric.Int64Counter
+	interactionQueueDepth         metric.Int64ObservableGauge
+	interactionQueueDepthValue    *atomic.Int64
+	interactionHandlerActive      metric.Int64ObservableGauge
+	interactionHandlerActiveValue *atomic.Int64
+	interactionRegistrations      metric.Int64Counter
+	securityMonitor               *securityMonitor
+	build                         buildinfo.Info
+	redactor                      *Redactor
 }
 
 func New(ctx context.Context, options Options) (*Provider, error) {
@@ -176,8 +191,64 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	interactionVerification, err := meter.Int64Counter("discord.interaction.signature.count")
+	if err != nil {
+		return nil, err
+	}
+	interactionAckDuration, err := meter.Float64Histogram("discord.interaction.ack.duration", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	interactionDeadlineMisses, err := meter.Int64Counter("discord.interaction.ack.deadline_miss_count")
+	if err != nil {
+		return nil, err
+	}
+	interactionDuplicates, err := meter.Int64Counter("discord.interaction.duplicate.count")
+	if err != nil {
+		return nil, err
+	}
+	interactionDeferred, err := meter.Float64Histogram("discord.interaction.deferred.duration", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	interactionCallbacks, err := meter.Int64Counter("discord.interaction.callback.count")
+	if err != nil {
+		return nil, err
+	}
+	interactionCallbackDuration, err := meter.Float64Histogram("discord.interaction.callback.duration", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
+	interactionApprovals, err := meter.Int64Counter("discord.interaction.approval.count")
+	if err != nil {
+		return nil, err
+	}
+	interactionSaturation, err := meter.Int64Counter("discord.interaction.saturation.count")
+	if err != nil {
+		return nil, err
+	}
+	interactionQueueDepthValue := new(atomic.Int64)
+	interactionQueueDepth, err := meter.Int64ObservableGauge("discord.interaction.queue.depth", metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+		observer.Observe(interactionQueueDepthValue.Load())
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
+	interactionHandlerActiveValue := new(atomic.Int64)
+	interactionHandlerActive, err := meter.Int64ObservableGauge("discord.interaction.handler.active", metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+		observer.Observe(interactionHandlerActiveValue.Load())
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
+	interactionRegistrations, err := meter.Int64Counter("discord.interaction.registration.count")
+	if err != nil {
+		return nil, err
+	}
 	monitor := newSecurityMonitor(options.Security, logger)
-	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
+	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, interactionVerification: interactionVerification, interactionAckDuration: interactionAckDuration, interactionDeadlineMisses: interactionDeadlineMisses, interactionDuplicates: interactionDuplicates, interactionDeferred: interactionDeferred, interactionCallbacks: interactionCallbacks, interactionCallbackDuration: interactionCallbackDuration, interactionApprovals: interactionApprovals, interactionSaturation: interactionSaturation, interactionQueueDepth: interactionQueueDepth, interactionQueueDepthValue: interactionQueueDepthValue, interactionHandlerActive: interactionHandlerActive, interactionHandlerActiveValue: interactionHandlerActiveValue, interactionRegistrations: interactionRegistrations, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
 	options.Redactor.SetInterventionHook(func() {
 		provider.RecordSecurityEvent(context.Background(), domain.SecurityEvent{Kind: "redaction_intervention", OccurredAt: time.Now()})
 	})
