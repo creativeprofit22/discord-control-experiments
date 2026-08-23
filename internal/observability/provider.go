@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -273,11 +274,19 @@ func exporters(ctx context.Context, options Options) (sdktrace.SpanExporter, sdk
 		}
 		return spans, sdkmetric.NewPeriodicReader(metrics), nil
 	case "otlp-http":
-		spans, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(options.Endpoint))
+		traceEndpoint, err := otlpSignalEndpoint(options.Endpoint, "/v1/traces")
 		if err != nil {
 			return nil, nil, err
 		}
-		metrics, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpointURL(options.Endpoint))
+		metricEndpoint, err := otlpSignalEndpoint(options.Endpoint, "/v1/metrics")
+		if err != nil {
+			return nil, nil, err
+		}
+		spans, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(traceEndpoint))
+		if err != nil {
+			return nil, nil, err
+		}
+		metrics, err := otlpmetrichttp.New(ctx, otlpmetrichttp.WithEndpointURL(metricEndpoint))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -285,6 +294,18 @@ func exporters(ctx context.Context, options Options) (sdktrace.SpanExporter, sdk
 	default:
 		return nil, nil, errors.New("unsupported telemetry exporter")
 	}
+}
+
+func otlpSignalEndpoint(endpoint, defaultPath string) (string, error) {
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return "", fmt.Errorf("parse OTLP endpoint: %w", err)
+	}
+	if parsed.Path != "" {
+		return endpoint, nil
+	}
+	parsed.Path = defaultPath
+	return parsed.String(), nil
 }
 
 func (p *Provider) Observe(ctx context.Context, operation domain.Operation, fn func(context.Context) error) error {
