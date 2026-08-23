@@ -32,7 +32,7 @@ func (f *approvalCoordinatorFixture) Issue(_ context.Context, invocation applica
 		return domain.ApprovalGrant{}, &domain.ApprovalError{Reason: "replayed"}
 	}
 	f.issued[plan.OperationHash] = true
-	return domain.ApprovalGrant{ID: "grant", ActorID: invocation.ActorID, OperationHash: plan.OperationHash, ExpiresAt: time.Now().Add(time.Minute)}, nil
+	return domain.ApprovalGrant{ID: "grant", ActorID: invocation.ActorID, GuildID: plan.GuildID, ScopeKind: domain.ApprovalScopeOperation, ScopeHash: plan.OperationHash, ExpiresAt: time.Now().Add(time.Minute)}, nil
 }
 
 func destructiveFixture(t *testing.T, nonInteractive bool) Command {

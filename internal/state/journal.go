@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"sync"
@@ -29,9 +30,14 @@ func OpenJournal(path string, guildID domain.GuildID, planHash domain.PlanHash) 
 	if guildID == "" || planHash == "" {
 		return nil, nil, fmt.Errorf("journal guild and plan hash are required")
 	}
-	events, err := ReplayJournal(path, guildID, planHash)
+	events, repairOffset, err := replayJournal(path, guildID, planHash)
 	if err != nil {
 		return nil, nil, err
+	}
+	if repairOffset >= 0 {
+		if err := repairJournal(path, repairOffset); err != nil {
+			return nil, nil, err
+		}
 	}
 	journal := &Journal{path: path, guildID: guildID, planHash: planHash}
 	if len(events) > 0 {
@@ -88,63 +94,117 @@ func (j *Journal) Append(event domain.JournalEvent) (domain.JournalEvent, error)
 }
 
 func ReplayJournal(path string, guildID domain.GuildID, planHash domain.PlanHash) ([]domain.JournalEvent, error) {
+	events, _, err := replayJournal(path, guildID, planHash)
+	return events, err
+}
+
+func replayJournal(path string, guildID domain.GuildID, planHash domain.PlanHash) ([]domain.JournalEvent, int64, error) {
 	// #nosec G304 -- callers obtain path from Paths.JournalPath, which validates components and containment.
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return []domain.JournalEvent{}, nil
+		return []domain.JournalEvent{}, -1, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("read journal: %w", err)
+		return nil, -1, fmt.Errorf("read journal: %w", err)
 	}
 	if len(data) > MaxJournalBytes {
-		return nil, fmt.Errorf("journal exceeds size limit")
+		return nil, -1, fmt.Errorf("journal exceeds size limit")
 	}
+	terminated := bytes.HasSuffix(data, []byte{'\n'})
 	lines := bytes.Split(data, []byte{'\n'})
 	events := make([]domain.JournalEvent, 0, len(lines))
 	previousHash := ""
 	for index, line := range lines {
 		last := index == len(lines)-1
+		if last && !terminated {
+			if len(line) > MaxJournalRecordBytes {
+				return nil, -1, fmt.Errorf("journal record exceeds size limit")
+			}
+			event, decodeErr := decodeJournalRecord(line)
+			if decodeErr == nil {
+				if _, err := validateJournalEvent(event, guildID, planHash, uint64(len(events)+1), previousHash, index+1); err != nil {
+					return nil, -1, err
+				}
+			}
+			return events, int64(len(data) - len(line)), nil
+		}
 		if len(line) == 0 {
 			if last {
 				continue
 			}
-			return nil, fmt.Errorf("journal contains an empty record")
+			return nil, -1, fmt.Errorf("journal contains an empty record")
 		}
 		if len(line) > MaxJournalRecordBytes {
-			if last && !bytes.HasSuffix(data, []byte{'\n'}) {
-				continue
-			}
-			return nil, fmt.Errorf("journal record exceeds size limit")
+			return nil, -1, fmt.Errorf("journal record exceeds size limit")
 		}
-		var event domain.JournalEvent
-		decoder := json.NewDecoder(bytes.NewReader(line))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&event); err != nil {
-			if last && !bytes.HasSuffix(data, []byte{'\n'}) {
-				continue
-			}
-			return nil, fmt.Errorf("decode journal record %d: %w", index+1, err)
-		}
-		if event.GuildID != guildID || event.PlanHash != planHash {
-			return nil, fmt.Errorf("journal binding mismatch at record %d", index+1)
-		}
-		if event.Sequence != uint64(len(events)+1) || event.PreviousHash != previousHash {
-			return nil, fmt.Errorf("journal sequence mismatch at record %d", index+1)
-		}
-		recordedHash := event.RecordHash
-		event.RecordHash = ""
-		expectedHash, err := journalRecordHash(event)
+		event, err := decodeJournalRecord(line)
 		if err != nil {
-			return nil, err
+			return nil, -1, fmt.Errorf("decode journal record %d: %w", index+1, err)
 		}
-		event.RecordHash = recordedHash
-		if recordedHash == "" || recordedHash != expectedHash {
-			return nil, fmt.Errorf("journal hash mismatch at record %d", index+1)
+		event, err = validateJournalEvent(event, guildID, planHash, uint64(len(events)+1), previousHash, index+1)
+		if err != nil {
+			return nil, -1, err
 		}
 		events = append(events, event)
-		previousHash = recordedHash
+		previousHash = event.RecordHash
 	}
-	return events, nil
+	return events, -1, nil
+}
+
+func decodeJournalRecord(line []byte) (domain.JournalEvent, error) {
+	var event domain.JournalEvent
+	decoder := json.NewDecoder(bytes.NewReader(line))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&event); err != nil {
+		return domain.JournalEvent{}, err
+	}
+	var trailing json.RawMessage
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return domain.JournalEvent{}, fmt.Errorf("journal record contains multiple JSON values")
+		}
+		return domain.JournalEvent{}, fmt.Errorf("journal record contains trailing data: %w", err)
+	}
+	return event, nil
+}
+
+func validateJournalEvent(event domain.JournalEvent, guildID domain.GuildID, planHash domain.PlanHash, sequence uint64, previousHash string, record int) (domain.JournalEvent, error) {
+	if event.GuildID != guildID || event.PlanHash != planHash {
+		return domain.JournalEvent{}, fmt.Errorf("journal binding mismatch at record %d", record)
+	}
+	if event.Sequence != sequence || event.PreviousHash != previousHash {
+		return domain.JournalEvent{}, fmt.Errorf("journal sequence mismatch at record %d", record)
+	}
+	recordedHash := event.RecordHash
+	event.RecordHash = ""
+	expectedHash, err := journalRecordHash(event)
+	if err != nil {
+		return domain.JournalEvent{}, err
+	}
+	event.RecordHash = recordedHash
+	if recordedHash == "" || recordedHash != expectedHash {
+		return domain.JournalEvent{}, fmt.Errorf("journal hash mismatch at record %d", record)
+	}
+	return event, nil
+}
+
+func repairJournal(path string, offset int64) error {
+	// #nosec G304 -- callers obtain path from Paths.JournalPath, which validates components and containment.
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("open journal for crash-tail repair: %w", err)
+	}
+	defer file.Close()
+	if err := checkPrivateFile(file); err != nil {
+		return err
+	}
+	if err := file.Truncate(offset); err != nil {
+		return fmt.Errorf("truncate journal crash tail: %w", err)
+	}
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("sync repaired journal: %w", err)
+	}
+	return nil
 }
 
 func journalRecordHash(event domain.JournalEvent) (string, error) {

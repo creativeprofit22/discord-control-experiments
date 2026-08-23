@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -19,28 +20,25 @@ type approvalClock struct{ now *time.Time }
 
 func (c approvalClock) Now() time.Time { return *c.now }
 
-type approvalIDs struct{}
-
-func (approvalIDs) NewCorrelationID() (domain.CorrelationID, error) { return "opaque-grant", nil }
-
 type approvalIssuer struct{ issued int }
 
 func (i *approvalIssuer) Issue(_ context.Context, grant domain.ApprovalGrant) (domain.ApprovalGrant, error) {
-	if grant.ID == "" {
-		return grant, errors.New("empty")
+	if grant.ID != "" {
+		return grant, errors.New("caller supplied approval ID")
 	}
 	i.issued++
+	grant.ID = domain.ApprovalID(fmt.Sprintf("opaque-grant-%d", i.issued))
 	return grant, nil
 }
 
 func destructiveServer(t *testing.T, now *time.Time) (*Server, *fakeOperator, *approvalIssuer) {
 	t.Helper()
 	issuer := &approvalIssuer{}
-	coordinator, err := application.NewApprovalCoordinator(issuer, approvalClock{now}, approvalIDs{}, time.Minute)
+	coordinator, err := application.NewApprovalCoordinator(issuer, approvalClock{now}, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operator := &fakeOperator{plan: domain.OperationPlan{Operation: "delete_message", Capability: domain.CapabilityMessageManage, Mode: domain.ModeApply, DestructiveClass: domain.DestructiveDelete, OperationHash: "operation-hash"}, result: application.OperatorResult{Value: domain.EmptyResult{}}}
+	operator := &fakeOperator{plan: domain.OperationPlan{GuildID: "123456789012345678", Operation: "delete_message", Capability: domain.CapabilityMessageManage, Mode: domain.ModeApply, DestructiveClass: domain.DestructiveDelete, OperationHash: "operation-hash"}, result: application.OperatorResult{Value: domain.EmptyResult{}}}
 	options := Options{Enabled: true, ImplementationVersion: "1.2.3-test", GuildID: "123456789012345678", ActorID: "mcp-operator", Mode: domain.ModeApply, Toolsets: []application.Toolset{application.ToolsetModeration}, ReadOnly: false, MaxMessageBytes: 1 << 20, MaxConcurrentCalls: 2, CallTimeout: time.Second, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Input: strings.NewReader(""), Output: io.Discard, Policy: allowPolicy{}, Operator: operator, Approval: coordinator, Clock: func() time.Time { return *now }, Correlation: func() domain.CorrelationID { return "corr-approval" }, FormElicitationSupported: func(*sdk.CallToolRequest) bool { return true }}
 	server, err := New(options)
 	if err != nil {
@@ -100,7 +98,7 @@ type dynamicApprovalOperator struct {
 func (o *dynamicApprovalOperator) PrepareDestructive(_ context.Context, request application.OperatorRequest) (domain.OperationPlan, error) {
 	o.prepareCalls++
 	o.lastRequest = request
-	return domain.OperationPlan{Operation: domain.OperationName(request.Handler), Mode: domain.ModeApply, DestructiveClass: domain.DestructiveRoleEscalation, OperationHash: "dynamic-operation-hash"}, nil
+	return domain.OperationPlan{GuildID: request.Command.GuildScope(), Operation: domain.OperationName(request.Handler), Mode: domain.ModeApply, DestructiveClass: domain.DestructiveRoleEscalation, OperationHash: "dynamic-operation-hash"}, nil
 }
 
 func (o *dynamicApprovalOperator) Execute(_ context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
@@ -118,7 +116,7 @@ func (o *dynamicApprovalOperator) Execute(_ context.Context, request application
 
 func dynamicDestructiveServer(t *testing.T, now *time.Time, operator *dynamicApprovalOperator) *Server {
 	t.Helper()
-	coordinator, err := application.NewApprovalCoordinator(&approvalIssuer{}, approvalClock{now}, approvalIDs{}, time.Minute)
+	coordinator, err := application.NewApprovalCoordinator(&approvalIssuer{}, approvalClock{now}, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}

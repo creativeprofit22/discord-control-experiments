@@ -150,12 +150,12 @@ func (s *DiscordService) dispatchDiscord(ctx context.Context, invocation Invocat
 		return untypedExecution{}, s.auditDenial(ctx, invocation, command, spec, domain.PolicyModeDenied, "read_only_mutation")
 	}
 	var approval domain.ApprovalGrant
-	if decision.EffectiveMode == domain.ModeApply && domain.RequiresApproval(destructiveClass) {
+	if decision.EffectiveMode == domain.ModeApply && domain.RequiresApproval(destructiveClass) && !invocation.reconciliation.allows(decision.ActorID, command) {
 		if s.approvals == nil || invocation.ApprovalID == "" {
 			s.securityTelemetry.RecordSecurityEvent(ctx, domain.SecurityEvent{Kind: "approval_bypass", Reason: domain.PolicyApprovalRequired, Mode: decision.EffectiveMode, DestructiveClass: destructiveClass, CorrelationID: invocation.CorrelationID, OccurredAt: s.now()})
 			return untypedExecution{}, s.auditDenial(ctx, invocation, command, spec, domain.PolicyApprovalRequired, "approval_missing")
 		}
-		approval, err = s.approvals.Consume(ctx, invocation.ApprovalID, decision.ActorID, operationHash, s.now())
+		approval, err = s.approvals.ConsumeOperation(ctx, invocation.ApprovalID, decision.ActorID, command.GuildScope(), operationHash, s.now())
 		if err != nil {
 			s.securityTelemetry.RecordSecurityEvent(ctx, domain.SecurityEvent{Kind: "approval_invalid", Reason: domain.PolicyApprovalInvalid, Mode: decision.EffectiveMode, DestructiveClass: destructiveClass, CorrelationID: invocation.CorrelationID, OccurredAt: s.now()})
 			return untypedExecution{}, s.auditDenial(ctx, invocation, command, spec, domain.PolicyApprovalInvalid, "approval_invalid")
@@ -178,7 +178,7 @@ func (s *DiscordService) dispatchDiscord(ctx context.Context, invocation Invocat
 		return nil
 	}
 	if decision.EffectiveMode == domain.ModeDryRun {
-		plan := &domain.OperationPlan{Operation: domain.OperationName(spec.Name), Capability: spec.Capability, Mode: decision.EffectiveMode, DestructiveClass: destructiveClass, ResourceKinds: resourceKinds(resources), Intent: spec.IntentSanitizer(command), OperationHash: operationHash}
+		plan := &domain.OperationPlan{GuildID: command.GuildScope(), Operation: domain.OperationName(spec.Name), Capability: spec.Capability, Mode: decision.EffectiveMode, DestructiveClass: destructiveClass, ResourceKinds: resourceKinds(resources), Intent: spec.IntentSanitizer(command), OperationHash: operationHash}
 		if err := complete("dry_run"); err != nil {
 			return untypedExecution{Plan: plan}, err
 		}

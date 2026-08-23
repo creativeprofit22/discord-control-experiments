@@ -2,13 +2,122 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"testing"
-	"time"
-
 	"github.com/ken-kai/discord-control-experiments/internal/domain"
 	"github.com/ken-kai/discord-control-experiments/internal/reconcile"
+	"reflect"
+	"testing"
+	"time"
 )
+
+func TestReconciliationResumeValidatesBeforeConsumingPlanApproval(t *testing.T) {
+	guildID := domain.GuildID("1")
+	actorID := domain.ActorID("actor")
+	principal := domain.Principal{Adapter: "test", Subject: "actor", AuthenticationMethod: "in-process"}
+	channelRef := domain.StableResourceRef{Kind: domain.ResourceChannel, LogicalID: "chat"}
+	binding := domain.ResourceBinding{Ref: channelRef, RemoteID: "2", Fingerprint: "bound-channel"}
+	channelName := "chat"
+	observedChannel := domain.Channel{ID: "2", GuildID: &guildID, Name: &channelName, Type: 0}
+	inspection := domain.GuildInspection{Guild: domain.Guild{ID: guildID}, Channels: []domain.Channel{observedChannel}, Roles: []domain.Role{}, Webhooks: []domain.Webhook{}, ApplicationCommands: []domain.ApplicationCommand{}}
+	snapshot, err := reconcile.NormalizeSnapshot(reconcile.SnapshotInput{Guild: inspection.Guild, Channels: inspection.Channels, Bindings: []domain.ResourceBinding{binding}, CapturedAt: time.Unix(1, 0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	desired := domain.DesiredGuild{SchemaVersion: domain.DeclarativeSchemaV1, GuildID: guildID, Ownership: domain.OwnershipMetadata{Owner: "team", DeleteOrphans: true}, Categories: []domain.DesiredCategory{}, Channels: []domain.DesiredChannel{{LogicalID: "chat", Name: "chat", Type: 2, Overwrites: []domain.DesiredOverwrite{}}}, Roles: []domain.DesiredRole{}, Webhooks: []domain.DesiredWebhook{}, ApplicationCommands: []domain.DesiredApplicationCommand{}}
+	plan, err := reconcile.BuildPlan(reconcile.PlanRequest{Desired: desired, Snapshot: snapshot, ActorID: actorID, CreatedAt: time.Unix(2, 0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Operations) != 1 || plan.Operations[0].Kind != domain.OperationReplace || !plan.Operations[0].RequiresApproval {
+		t.Fatalf("approval-bound resume plan = %#v", plan.Operations)
+	}
+	operation := plan.Operations[0]
+
+	tests := []struct {
+		name            string
+		journalEvents   []domain.JournalEvent
+		inspection      domain.GuildInspection
+		wantReason      string
+		wantConsumes    int
+		wantJournalOpen int
+	}{
+		{
+			name: "stale precondition",
+			journalEvents: []domain.JournalEvent{
+				{RunID: "run", Type: domain.JournalRunStarted, OccurredAt: time.Unix(2, 0)},
+				{RunID: "run", Type: domain.JournalStepStarted, OperationID: operation.ID, Resource: &operation.Resource, State: domain.StepStarted, OccurredAt: time.Unix(2, 0)},
+			},
+			inspection: func() domain.GuildInspection {
+				changed := inspection
+				changedName := "changed"
+				changed.Channels = []domain.Channel{{ID: "2", GuildID: &guildID, Name: &changedName, Type: 0}}
+				return changed
+			}(),
+			wantReason: "started operation precondition changed",
+		},
+		{
+			name: "journal conflict",
+			journalEvents: []domain.JournalEvent{
+				{RunID: "run", Type: domain.JournalRunStarted, OccurredAt: time.Unix(2, 0)},
+				{RunID: "run", Type: domain.JournalStepStarted, OperationID: "unknown-operation", State: domain.StepStarted, OccurredAt: time.Unix(2, 0)},
+			},
+			inspection: inspection,
+			wantReason: "journal references unknown operation",
+		},
+		{
+			name: "valid resume",
+			journalEvents: []domain.JournalEvent{
+				{RunID: "run", Type: domain.JournalRunStarted, OccurredAt: time.Unix(2, 0)},
+				{RunID: "run", Type: domain.JournalStepComplete, OperationID: operation.ID, Resource: &operation.Resource, State: domain.StepCompleted, RemoteID: binding.RemoteID, Fingerprint: operation.PayloadFingerprint, OccurredAt: time.Unix(2, 0)},
+			},
+			inspection:      inspection,
+			wantConsumes:    1,
+			wantJournalOpen: 1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			approval := &boundReconciliationApproval{id: "resume-approval", actor: actorID, guild: guildID, planHash: plan.Hash, expiresAt: time.Unix(4, 0).Add(time.Minute)}
+			state := newReconciliationState()
+			state.bindings = []domain.ResourceBinding{binding}
+			state.plans["run"] = plan
+			state.journals["run"] = &memoryJournal{events: append([]domain.JournalEvent(nil), test.journalEvents...)}
+			before := captureDurableReconciliationState(state)
+			port := &scriptedPort{results: []DiscordPortResult{{Value: test.inspection, Attempts: 1}}}
+			secured, err := NewSecuredDiscordService(port, NewInMemoryIdempotencyStore(), NewInMemoryResourceOwnershipStore(), nil, SecurityDependencies{Policy: allowTestPolicy{}, Approvals: approval, Audit: &memoryTestAudit{}, DefaultInvocation: Invocation{Principal: principal, RequestedMode: domain.ModeApply, CorrelationID: "default"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			service, err := NewReconciliationService(secured, state, reconciliationClock{now: time.Unix(4, 0)}, reconciliationIDs{value: "unused"}, nil, ReconciliationLimits{MaxOperations: 10, MaxDestructiveOperations: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, resumeErr := service.Resume(context.Background(), ResumeRequest{GuildID: guildID, RunID: "run", PlanHash: plan.Hash, ActorID: actorID, Principal: principal, ApprovalID: approval.id, AllowDelete: true, CorrelationID: "resume"})
+			if test.wantReason != "" {
+				var conflict *domain.ConflictError
+				if !errors.As(resumeErr, &conflict) || conflict.Reason != test.wantReason {
+					t.Fatalf("error = %v, want conflict %q", resumeErr, test.wantReason)
+				}
+				if !reflect.DeepEqual(captureDurableReconciliationState(state), before) {
+					t.Fatalf("durable state changed after pre-authorization conflict")
+				}
+			} else if resumeErr != nil || result.State != domain.RunCompleted {
+				t.Fatalf("result=%#v error=%v", result, resumeErr)
+			}
+			if approval.planConsumes != test.wantConsumes {
+				t.Fatalf("approval consumes = %d, want %d", approval.planConsumes, test.wantConsumes)
+			}
+			if state.journalOpenCalls != test.wantJournalOpen {
+				t.Fatalf("journal opens = %d, want %d", state.journalOpenCalls, test.wantJournalOpen)
+			}
+			if port.count() != 1 {
+				t.Fatalf("transport calls = %d, want snapshot only", port.count())
+			}
+		})
+	}
+}
 
 func TestResumeReconcilesCrashAfterEveryCreateWithoutRepeatingIt(t *testing.T) {
 	guildID := domain.GuildID("1")

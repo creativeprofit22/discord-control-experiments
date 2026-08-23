@@ -198,6 +198,10 @@ func (s *ReconciliationService) Apply(ctx context.Context, request domain.ApplyR
 		return domain.ApplyResult{}, errors.New("generate reconciliation run ID")
 	}
 	runID := domain.RunID(generatedRunID)
+	authorization, err := s.authorizePlan(ctx, request.ApprovalID, request.ActorID, plan)
+	if err != nil {
+		return domain.ApplyResult{}, s.recordPlanAuthorizationDenial(ctx, request.Principal, request.ActorID, plan, "apply_reconciliation_plan", request.CorrelationID, err)
+	}
 	if err := s.state.SavePlan(plan.Binding.GuildID, runID, plan); err != nil {
 		return domain.ApplyResult{}, err
 	}
@@ -214,7 +218,7 @@ func (s *ReconciliationService) Apply(ctx context.Context, request domain.ApplyR
 	}
 	result := domain.ApplyResult{RunID: runID, PlanHash: plan.Hash, State: domain.RunApplying, ResumeStatus: domain.ResumeNotNeeded, Steps: []domain.ApplyStepResult{}, StartedAt: startedAt}
 	bindings := bindingMap(snapshot.Bindings)
-	invocation := Invocation{Principal: request.Principal, ActorID: request.ActorID, RequestedMode: domain.ModeApply, CorrelationID: request.CorrelationID, ApprovalID: request.ApprovalID}
+	invocation := Invocation{Principal: request.Principal, ActorID: request.ActorID, RequestedMode: domain.ModeApply, CorrelationID: request.CorrelationID, reconciliation: authorization}
 	for _, operation := range plan.Operations {
 		step, stepErr := s.runOperation(ctx, journal, runID, plan, operation, bindings, invocation)
 		result.Steps = append(result.Steps, step)
@@ -256,7 +260,11 @@ func (s *ReconciliationService) Resume(ctx context.Context, request ResumeReques
 	if hasDelete(plan) && (!plan.Binding.AllowDesiredDeletes || !request.AllowDelete) {
 		return domain.ApplyResult{}, &domain.UnsafeOperationError{Reason: "deletion requires desired-state and runtime opt-in"}
 	}
-	journal, events, err := s.state.OpenJournal(request.GuildID, request.RunID, plan.Hash)
+	snapshot, err := s.Snapshot(ctx, SnapshotRequest{GuildID: request.GuildID, ApplicationID: plan.Binding.ApplicationID, Principal: request.Principal, CorrelationID: request.CorrelationID})
+	if err != nil {
+		return domain.ApplyResult{}, err
+	}
+	events, err := s.state.LoadJournalEvents(request.GuildID, request.RunID, plan.Hash)
 	if err != nil {
 		return domain.ApplyResult{}, err
 	}
@@ -271,13 +279,7 @@ func (s *ReconciliationService) Resume(ctx context.Context, request ResumeReques
 			bindingByRef[*event.Resource] = domain.ResourceBinding{Ref: *event.Resource, RemoteID: event.RemoteID, Fingerprint: event.Fingerprint}
 		}
 	}
-	if err := s.saveBindingMap(request.GuildID, bindingByRef); err != nil {
-		return domain.ApplyResult{}, err
-	}
-	snapshot, err := s.Snapshot(ctx, SnapshotRequest{GuildID: request.GuildID, ApplicationID: plan.Binding.ApplicationID, Principal: request.Principal, CorrelationID: request.CorrelationID})
-	if err != nil {
-		return domain.ApplyResult{}, err
-	}
+	recoveryEvents := make([]domain.JournalEvent, 0, len(started))
 	for operationID := range started {
 		if completed[operationID] {
 			continue
@@ -292,17 +294,13 @@ func (s *ReconciliationService) Resume(ctx context.Context, request ResumeReques
 				return domain.ApplyResult{}, conflict
 			}
 			bindingByRef[operation.Resource] = *match
-			if _, err := journal.Append(domain.JournalEvent{RunID: request.RunID, Type: domain.JournalStepComplete, OperationID: operation.ID, Resource: &operation.Resource, State: domain.StepCompleted, RemoteID: match.RemoteID, Fingerprint: match.Fingerprint, OccurredAt: s.clock.Now()}); err != nil {
-				return domain.ApplyResult{}, err
-			}
+			recoveryEvents = append(recoveryEvents, domain.JournalEvent{RunID: request.RunID, Type: domain.JournalStepComplete, OperationID: operation.ID, Resource: &operation.Resource, State: domain.StepCompleted, RemoteID: match.RemoteID, Fingerprint: match.Fingerprint, OccurredAt: s.clock.Now()})
 			completed[operation.ID] = true
 			continue
 		}
 		if operation.Kind == domain.OperationDelete && operation.Preconditions.ResourceRemoteID != "" && !resourcePresent(operation.Preconditions.ResourceRemoteID, snapshot) {
 			delete(bindingByRef, operation.Resource)
-			if _, err := journal.Append(domain.JournalEvent{RunID: request.RunID, Type: domain.JournalStepComplete, OperationID: operation.ID, Resource: &operation.Resource, State: domain.StepCompleted, RemoteID: operation.Preconditions.ResourceRemoteID, Fingerprint: operation.PayloadFingerprint, OccurredAt: s.clock.Now()}); err != nil {
-				return domain.ApplyResult{}, err
-			}
+			recoveryEvents = append(recoveryEvents, domain.JournalEvent{RunID: request.RunID, Type: domain.JournalStepComplete, OperationID: operation.ID, Resource: &operation.Resource, State: domain.StepCompleted, RemoteID: operation.Preconditions.ResourceRemoteID, Fingerprint: operation.PayloadFingerprint, OccurredAt: s.clock.Now()})
 			completed[operation.ID] = true
 			continue
 		}
@@ -310,18 +308,41 @@ func (s *ReconciliationService) Resume(ctx context.Context, request ResumeReques
 			return domain.ApplyResult{}, &domain.ConflictError{Reason: "started operation precondition changed", Conflicts: []domain.PlanConflict{{Kind: domain.ConflictStalePrecondition, Resource: operation.Resource, Message: "resource changed after an uncertain operation"}}}
 		}
 	}
+	preflightCompleted := make(map[domain.OperationID]bool, len(completed)+len(plan.Operations))
+	for operationID, isCompleted := range completed {
+		preflightCompleted[operationID] = isCompleted
+	}
+	for _, operation := range plan.Operations {
+		if preflightCompleted[operation.ID] {
+			continue
+		}
+		if !dependenciesComplete(operation, preflightCompleted) {
+			return domain.ApplyResult{}, &domain.ConflictError{Reason: "operation dependency is incomplete"}
+		}
+		preflightCompleted[operation.ID] = true
+	}
+	authorization, err := s.authorizePlan(ctx, request.ApprovalID, request.ActorID, plan)
+	if err != nil {
+		return domain.ApplyResult{}, s.recordPlanAuthorizationDenial(ctx, request.Principal, request.ActorID, plan, "resume_reconciliation_plan", request.CorrelationID, err)
+	}
+	journal, _, err := s.state.OpenJournal(request.GuildID, request.RunID, plan.Hash)
+	if err != nil {
+		return domain.ApplyResult{}, err
+	}
+	for _, event := range recoveryEvents {
+		if _, err := journal.Append(event); err != nil {
+			return domain.ApplyResult{}, err
+		}
+	}
 	if err := s.saveBindingMap(request.GuildID, bindingByRef); err != nil {
 		return domain.ApplyResult{}, err
 	}
 	result := domain.ApplyResult{RunID: request.RunID, PlanHash: plan.Hash, State: domain.RunApplying, ResumeStatus: domain.ResumeContinued, Steps: []domain.ApplyStepResult{}, StartedAt: firstRunTime(events)}
-	invocation := Invocation{Principal: request.Principal, ActorID: request.ActorID, RequestedMode: domain.ModeApply, CorrelationID: request.CorrelationID, ApprovalID: request.ApprovalID}
+	invocation := Invocation{Principal: request.Principal, ActorID: request.ActorID, RequestedMode: domain.ModeApply, CorrelationID: request.CorrelationID, reconciliation: authorization}
 	for _, operation := range plan.Operations {
 		if completed[operation.ID] {
 			result.Steps = append(result.Steps, domain.ApplyStepResult{OperationID: operation.ID, Resource: operation.Resource, State: domain.StepSkipped})
 			continue
-		}
-		if !dependenciesComplete(operation, completed) {
-			return result, &domain.ConflictError{Reason: "operation dependency is incomplete"}
 		}
 		step, stepErr := s.runOperation(ctx, journal, request.RunID, plan, operation, bindingByRef, invocation)
 		result.Steps = append(result.Steps, step)
@@ -338,6 +359,51 @@ func (s *ReconciliationService) Resume(ctx context.Context, request ResumeReques
 	}
 	s.telemetry.ObserveReconciliation(ctx, ReconciliationObservation{CorrelationID: request.CorrelationID, PlanHashPrefix: prefix(string(plan.Hash)), RunID: request.RunID, Outcome: "resumed", Resumed: true})
 	return result, nil
+}
+
+func (s *ReconciliationService) recordPlanAuthorizationDenial(ctx context.Context, principal domain.Principal, actor domain.ActorID, plan domain.Plan, operation domain.OperationName, correlationID domain.CorrelationID, authorizationErr error) error {
+	var authorization *domain.AuthorizationError
+	if !errors.As(authorizationErr, &authorization) {
+		return authorizationErr
+	}
+	event := domain.AuditEvent{
+		Kind:          "decision",
+		Timestamp:     s.clock.Now(),
+		ActorID:       actor,
+		Adapter:       principal.Adapter,
+		GuildID:       plan.Binding.GuildID,
+		Operation:     operation,
+		Decision:      false,
+		Reason:        authorization.Reason,
+		Mode:          domain.ModeApply,
+		Result:        "approval_denied",
+		CorrelationID: correlationID,
+		OperationHash: string(plan.Hash),
+	}
+	if err := s.discord.audit.Append(context.WithoutCancel(ctx), event); err != nil {
+		return &domain.AuditError{Stage: "denial"}
+	}
+	return authorizationErr
+}
+
+func (s *ReconciliationService) authorizePlan(ctx context.Context, approvalID domain.ApprovalID, actor domain.ActorID, plan domain.Plan) (*reconciliationAuthorization, error) {
+	required := false
+	for _, operation := range plan.Operations {
+		if operation.RequiresApproval {
+			required = true
+			break
+		}
+	}
+	if !required {
+		return nil, nil
+	}
+	if s.discord.approvals == nil || approvalID == "" {
+		return nil, &domain.AuthorizationError{Reason: domain.PolicyApprovalRequired}
+	}
+	if _, err := s.discord.approvals.ConsumeReconciliationPlan(ctx, approvalID, actor, plan.Binding.GuildID, string(plan.Hash), s.clock.Now()); err != nil {
+		return nil, &domain.AuthorizationError{Reason: domain.PolicyApprovalInvalid}
+	}
+	return newReconciliationAuthorization(actor, plan.Binding.GuildID, plan.Hash, plan.Operations), nil
 }
 
 func validateReconciliationIdentity(principal domain.Principal, actor domain.ActorID, correlation domain.CorrelationID) error {

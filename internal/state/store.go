@@ -31,6 +31,13 @@ func (s *Store) SaveBindings(guildID domain.GuildID, bindings []domain.ResourceB
 func (s *Store) AcquireGuildLock(guildID domain.GuildID) (io.Closer, error) {
 	return AcquireGuildLock(s.paths, guildID)
 }
+func (s *Store) LoadJournalEvents(guildID domain.GuildID, runID domain.RunID, planHash domain.PlanHash) ([]domain.JournalEvent, error) {
+	path, err := s.paths.JournalPath(guildID, runID)
+	if err != nil {
+		return nil, err
+	}
+	return ReplayJournal(path, guildID, planHash)
+}
 func (s *Store) OpenJournal(guildID domain.GuildID, runID domain.RunID, planHash domain.PlanHash) (application.ReconciliationJournal, []domain.JournalEvent, error) {
 	path, err := s.paths.JournalPath(guildID, runID)
 	if err != nil {

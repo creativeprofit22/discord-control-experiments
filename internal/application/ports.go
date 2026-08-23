@@ -66,6 +66,7 @@ type ReconciliationState interface {
 	LoadBindings(domain.GuildID) ([]domain.ResourceBinding, error)
 	SaveBindings(domain.GuildID, []domain.ResourceBinding) error
 	AcquireGuildLock(domain.GuildID) (io.Closer, error)
+	LoadJournalEvents(domain.GuildID, domain.RunID, domain.PlanHash) ([]domain.JournalEvent, error)
 	OpenJournal(domain.GuildID, domain.RunID, domain.PlanHash) (ReconciliationJournal, []domain.JournalEvent, error)
 	SavePlan(domain.GuildID, domain.RunID, domain.Plan) error
 	LoadPlan(domain.GuildID, domain.RunID) (domain.Plan, error)

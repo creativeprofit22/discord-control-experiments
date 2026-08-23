@@ -15,6 +15,34 @@ type Invocation struct {
 	ParentCorrelationID domain.CorrelationID
 	ApprovalID          domain.ApprovalID
 	ActorID             domain.ActorID
+	reconciliation      *reconciliationAuthorization
+}
+
+type reconciliationAuthorization struct {
+	actor        domain.ActorID
+	guild        domain.GuildID
+	planHash     domain.PlanHash
+	operationIDs map[domain.OperationID]struct{}
+}
+
+func newReconciliationAuthorization(actor domain.ActorID, guild domain.GuildID, planHash domain.PlanHash, operations []domain.PlanOperation) *reconciliationAuthorization {
+	ids := make(map[domain.OperationID]struct{}, len(operations))
+	for _, operation := range operations {
+		ids[operation.ID] = struct{}{}
+	}
+	return &reconciliationAuthorization{actor: actor, guild: guild, planHash: planHash, operationIDs: ids}
+}
+
+func (a *reconciliationAuthorization) allows(actor domain.ActorID, command domain.Command) bool {
+	if a == nil || actor != a.actor || command == nil || command.GuildScope() != a.guild {
+		return false
+	}
+	contextData := commandContext(command)
+	if domain.PlanHash(contextData.ReconciliationKey) != a.planHash {
+		return false
+	}
+	_, ok := a.operationIDs[domain.OperationID(contextData.IdempotencyKey)]
+	return ok
 }
 
 func (i Invocation) valid() bool {
@@ -27,7 +55,8 @@ type PolicyEvaluator interface {
 }
 
 type ApprovalStore interface {
-	Consume(context.Context, domain.ApprovalID, domain.ActorID, string, time.Time) (domain.ApprovalGrant, error)
+	ConsumeOperation(context.Context, domain.ApprovalID, domain.ActorID, domain.GuildID, string, time.Time) (domain.ApprovalGrant, error)
+	ConsumeReconciliationPlan(context.Context, domain.ApprovalID, domain.ActorID, domain.GuildID, string, time.Time) (domain.ApprovalGrant, error)
 }
 
 type ApprovalIssuer interface {

@@ -19,6 +19,7 @@ type DestructiveClass string
 type ResourceKind string
 type PolicyReason string
 type ApprovalID string
+type ApprovalScopeKind string
 type AuditEventKind string
 type SecurityEventKind string
 
@@ -126,14 +127,21 @@ type PolicyDecision struct {
 	Preapproved   bool
 }
 
+const (
+	ApprovalScopeOperation          ApprovalScopeKind = "operation"
+	ApprovalScopeReconciliationPlan ApprovalScopeKind = "reconciliation_plan"
+)
+
 type ApprovalGrant struct {
-	ID            ApprovalID
-	ActorID       ActorID
-	OperationHash string
-	ApproverID    ActorID
-	IssuedAt      time.Time
-	ExpiresAt     time.Time
-	ConsumedAt    time.Time
+	ID         ApprovalID
+	ActorID    ActorID
+	GuildID    GuildID
+	ScopeKind  ApprovalScopeKind
+	ScopeHash  string
+	ApproverID ActorID
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+	ConsumedAt time.Time
 }
 
 type AuditEvent struct {
@@ -183,6 +191,7 @@ type AuditError struct{ Stage string }
 func (e *AuditError) Error() string { return "Discord audit append failed at " + e.Stage }
 
 type OperationPlan struct {
+	GuildID          GuildID           `json:"guildId"`
 	Operation        OperationName     `json:"operation"`
 	Capability       Capability        `json:"capability"`
 	Mode             ExecutionMode     `json:"mode"`

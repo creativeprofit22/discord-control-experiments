@@ -221,7 +221,7 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		_ = auditSink.Close()
 		return application.OperatorResult{}, ttlErr
 	}
-	approvalCoordinator, coordinatorErr := application.NewApprovalCoordinator(approvalStore, systemClock{}, correlationIDGenerator{}, maximumApprovalTTL)
+	approvalCoordinator, coordinatorErr := application.NewApprovalCoordinator(approvalStore, systemClock{}, maximumApprovalTTL)
 	if coordinatorErr != nil {
 		_ = auditSink.Close()
 		return application.OperatorResult{}, coordinatorErr

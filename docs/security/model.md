@@ -25,7 +25,7 @@ Discord bot tokens and webhook URLs, actor grants, approvals, audit integrity, g
 
 **Cross-guild substitution:** every command exposes typed resource references. Known conflicting owners and unknown unqualified owners deny before transport. Ownership records arise only from guild-scoped discovery/create responses.
 
-**Approval replay or fatigue:** mandatory destructive classes consume one random grant bound to actor and canonical operation hash. MCP form request state additionally binds canonical arguments, tool, actor, guild, plan, and a two-minute expiry and is consumed on every terminal attempt. Expiry, mismatch, replay, restart, or storage error denies. Dry runs do not consume. No issuance tool exists; exact narrow workflows avoid wildcard or bundled approval.
+**Approval replay or fatigue:** mandatory destructive classes consume one random grant bound to actor, guild, scope kind, and canonical operation/plan hash. MCP form request state additionally binds canonical arguments, tool, actor, guild, plan, and a two-minute expiry and is consumed on every terminal attempt. Expiry, mismatch, replay, restart, or storage error denies. Dry runs do not consume. No issuance tool exists; exact narrow workflows avoid wildcard or bundled approval.
 
 **Secret disclosure:** config stores references/handles, Discord stores a use callback rather than plaintext, and each value is registered before request construction. Telemetry/audit schemas avoid content; dynamic redaction is defense in depth and emits interventions. Crash output is generic. Rotation uses separate environment credentials and restart verification.
 

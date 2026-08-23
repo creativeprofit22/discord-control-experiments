@@ -49,6 +49,7 @@ func (o *evaluationOperator) PrepareDestructive(_ context.Context, request appli
 		return domain.OperationPlan{}, fmt.Errorf("evaluation tool %q has no contract", request.Handler)
 	}
 	return domain.OperationPlan{
+		GuildID:          request.Command.GuildScope(),
 		Operation:        domain.OperationName(request.Handler),
 		Capability:       contract.Spec.Capability,
 		Mode:             domain.ModeApply,
@@ -80,17 +81,12 @@ func evaluationResult(tool string) any {
 	}
 }
 
-type evaluationApprovalIssuer struct{}
+type evaluationApprovalIssuer struct{ next int }
 
-func (evaluationApprovalIssuer) Issue(_ context.Context, grant domain.ApprovalGrant) (domain.ApprovalGrant, error) {
+func (issuer *evaluationApprovalIssuer) Issue(_ context.Context, grant domain.ApprovalGrant) (domain.ApprovalGrant, error) {
+	issuer.next++
+	grant.ID = domain.ApprovalID(fmt.Sprintf("evaluation-approval-%d", issuer.next))
 	return grant, nil
-}
-
-type evaluationIDs struct{ next int }
-
-func (ids *evaluationIDs) NewCorrelationID() (domain.CorrelationID, error) {
-	ids.next++
-	return domain.CorrelationID(fmt.Sprintf("evaluation-%d", ids.next)), nil
 }
 
 var evaluationArguments = map[string]json.RawMessage{
@@ -108,30 +104,33 @@ var evaluationArguments = map[string]json.RawMessage{
 func runDeterministicEvaluation(corpus EvaluationCorpus) (map[string]EvaluationObservation, error) {
 	clock := newEvaluationClock()
 	operator := &evaluationOperator{clock: clock}
-	ids := &evaluationIDs{}
-	approval, err := application.NewApprovalCoordinator(evaluationApprovalIssuer{}, clock, ids, time.Minute)
+	nextCorrelationID := 0
+	approval, err := application.NewApprovalCoordinator(&evaluationApprovalIssuer{}, clock, time.Minute)
 	if err != nil {
 		return nil, err
 	}
 	options := Options{
-		Enabled:                  true,
-		ImplementationVersion:    "evaluation-test",
-		GuildID:                  "123456789012345678",
-		ActorID:                  "mcp-evaluator",
-		Mode:                     domain.ModeApply,
-		Toolsets:                 []application.Toolset{application.ToolsetBuild, application.ToolsetModeration, application.ToolsetNews, application.ToolsetDiagnostic},
-		ReadOnly:                 false,
-		MaxMessageBytes:          1 << 20,
-		MaxConcurrentCalls:       1,
-		CallTimeout:              time.Second,
-		Logger:                   slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Input:                    strings.NewReader(""),
-		Output:                   io.Discard,
-		Policy:                   allowPolicy{},
-		Operator:                 operator,
-		Approval:                 approval,
-		Clock:                    clock.Now,
-		Correlation:              func() domain.CorrelationID { id, _ := ids.NewCorrelationID(); return id },
+		Enabled:               true,
+		ImplementationVersion: "evaluation-test",
+		GuildID:               "123456789012345678",
+		ActorID:               "mcp-evaluator",
+		Mode:                  domain.ModeApply,
+		Toolsets:              []application.Toolset{application.ToolsetBuild, application.ToolsetModeration, application.ToolsetNews, application.ToolsetDiagnostic},
+		ReadOnly:              false,
+		MaxMessageBytes:       1 << 20,
+		MaxConcurrentCalls:    1,
+		CallTimeout:           time.Second,
+		Logger:                slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Input:                 strings.NewReader(""),
+		Output:                io.Discard,
+		Policy:                allowPolicy{},
+		Operator:              operator,
+		Approval:              approval,
+		Clock:                 clock.Now,
+		Correlation: func() domain.CorrelationID {
+			nextCorrelationID++
+			return domain.CorrelationID(fmt.Sprintf("evaluation-%d", nextCorrelationID))
+		},
 		FormElicitationSupported: func(*sdk.CallToolRequest) bool { return true },
 	}
 	server, err := New(options)

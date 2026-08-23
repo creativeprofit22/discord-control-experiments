@@ -39,7 +39,7 @@ func (s *DiscordService) PrepareOperation(ctx context.Context, invocation Invoca
 	if err != nil {
 		return domain.OperationPlan{}, &domain.InvariantError{Detail: "operation hash failed"}
 	}
-	plan := domain.OperationPlan{Operation: request.Operation, Capability: request.Capability, Mode: request.Mode, DestructiveClass: destructive, ResourceKinds: resourceKinds(resources), Intent: spec.IntentSanitizer(command), OperationHash: hash, Preapproved: decision.Preapproved}
+	plan := domain.OperationPlan{GuildID: request.GuildID, Operation: request.Operation, Capability: request.Capability, Mode: request.Mode, DestructiveClass: destructive, ResourceKinds: resourceKinds(resources), Intent: spec.IntentSanitizer(command), OperationHash: hash, Preapproved: decision.Preapproved}
 	if err := s.audit.Append(ctx, s.auditEvent(invocation, command, spec, decision, domain.ApprovalGrant{}, hash, "preparation", "planned")); err != nil {
 		return domain.OperationPlan{}, &domain.AuditError{Stage: "preparation"}
 	}

@@ -69,8 +69,11 @@ func (a *memoryTestAudit) Append(_ context.Context, event domain.AuditEvent) err
 
 type allowTestApproval struct{}
 
-func (allowTestApproval) Consume(_ context.Context, id domain.ApprovalID, actor domain.ActorID, hash string, now time.Time) (domain.ApprovalGrant, error) {
-	return domain.ApprovalGrant{ID: id, ActorID: actor, OperationHash: hash, ApproverID: "human", IssuedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)}, nil
+func (allowTestApproval) ConsumeOperation(_ context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, hash string, now time.Time) (domain.ApprovalGrant, error) {
+	return domain.ApprovalGrant{ID: id, ActorID: actor, GuildID: guild, ScopeKind: domain.ApprovalScopeOperation, ScopeHash: hash, ApproverID: "human", IssuedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)}, nil
+}
+func (allowTestApproval) ConsumeReconciliationPlan(_ context.Context, id domain.ApprovalID, actor domain.ActorID, guild domain.GuildID, hash string, now time.Time) (domain.ApprovalGrant, error) {
+	return domain.ApprovalGrant{ID: id, ActorID: actor, GuildID: guild, ScopeKind: domain.ApprovalScopeReconciliationPlan, ScopeHash: hash, ApproverID: "human", IssuedAt: now.Add(-time.Second), ExpiresAt: now.Add(time.Minute)}, nil
 }
 
 func newTestDiscordService(port DiscordPort, idempotency IdempotencyStore, ownership ResourceOwnershipStore, telemetry DiscordTelemetry) *DiscordService {
