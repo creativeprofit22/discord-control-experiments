@@ -157,7 +157,10 @@ func (s *DiscordService) dispatchDiscordWithCapability(ctx context.Context, invo
 		return untypedExecution{}, s.auditDenial(ctx, invocation, command, spec, domain.PolicyModeDenied, "read_only_mutation")
 	}
 	var approval domain.ApprovalGrant
-	if decision.EffectiveMode == domain.ModeApply && domain.RequiresApproval(destructiveClass) && !invocation.reconciliation.allows(decision.ActorID, command) && !invocation.lockdown.allows(decision.ActorID, command) {
+	if invocation.automationReview.allows(decision.ActorID, command) {
+		approval = invocation.automationReview.grant
+	}
+	if decision.EffectiveMode == domain.ModeApply && domain.RequiresApproval(destructiveClass) && !invocation.reconciliation.allows(decision.ActorID, command) && !invocation.lockdown.allows(decision.ActorID, command) && !invocation.automationReview.allows(decision.ActorID, command) {
 		if s.approvals == nil || invocation.ApprovalID == "" {
 			s.securityTelemetry.RecordSecurityEvent(ctx, domain.SecurityEvent{Kind: "approval_bypass", Reason: domain.PolicyApprovalRequired, Mode: decision.EffectiveMode, DestructiveClass: destructiveClass, CorrelationID: invocation.CorrelationID, OccurredAt: s.now()})
 			return untypedExecution{}, s.auditDenial(ctx, invocation, command, spec, domain.PolicyApprovalRequired, "approval_missing")

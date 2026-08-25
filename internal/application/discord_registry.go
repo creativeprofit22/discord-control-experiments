@@ -100,6 +100,9 @@ func buildCommandRegistry() map[string]CommandSpec {
 	for _, x := range messages {
 		add(x.name, x.method, x.route, "channel.id", OwnershipChannel, x.mut, x.retry, x.idem, x.rec)
 	}
+	add("start_forum_thread", "POST", "/channels/{channel.id}/threads", "channel.id", OwnershipChannel, MutationCreate, RetryUnsafe, IdempotencyRequired, "none")
+	add("create_poll", "POST", "/channels/{channel.id}/messages", "channel.id", OwnershipChannel, MutationCreate, RetryUnsafe, IdempotencyRequired, "message_nonce")
+	add("execute_configured_webhook", "POST", "/configured-webhooks/{alias}", "guild.id", g, MutationCreate, RetryUnsafe, IdempotencyRequired, "message_nonce")
 	webhooks := []struct {
 		name, method, route string
 		own                 OwnershipRequirement
@@ -191,7 +194,7 @@ func capabilityFor(name string, mutation MutationClass) domain.Capability {
 			return domain.CapabilityInviteManage
 		}
 		return domain.CapabilityInviteRead
-	case strings.Contains(name, "message") || strings.Contains(name, "pin_"):
+	case strings.Contains(name, "message") || strings.Contains(name, "pin_") || strings.Contains(name, "thread") || strings.Contains(name, "poll"):
 		if manage {
 			return domain.CapabilityMessageManage
 		}

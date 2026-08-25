@@ -11,7 +11,9 @@ Secret values register concurrently with one dynamic redactor before each transp
 
 Exporters are `none`, stderr JSON, or OTLP/HTTP to explicit HTTPS. Security counters use only decision/reason, approval result, execution mode, destructive class, audit result, and event kind. Approval latency has no approval-ID dimension. Immediate cross-guild, policy, approval, redaction, and audit alerts plus bounded repeated-denial/destructive windows carry only correlation ID and stable enums. Telemetry failures never change authorization; audit failures do.
 
-Interactions add bounded signature outcome/key-slot, acknowledgement type/latency/deadline-miss, duplicate outcome, queue depth, active handler, saturation, deferred outcome/duration, callback outcome, approval outcome, and registration outcome instruments. They never attach Discord snowflakes, names, interaction/custom IDs, tokens, signatures, keys, IPs, request/response content, policy reasons, raw errors, or plan hashes. Repeated signature failures, acknowledgement misses, callback failures, and saturation use sanitized process-local threshold windows; durable external alerts must use exported metrics.
+Interactions add bounded signature, acknowledgement, duplicate, queue, callback, approval, and registration instruments. They never attach Discord IDs, names, tokens, signatures, request content, raw errors, or plan hashes.
+
+Automation adds `workflow.events` and `workflow.schedule.lag`. Bounded events cover queue, lag, lease contention, retry, dead letter, source failure, deduplication, publication, approval, and partial failure. Traces retain workflow/run/guild/step IDs and provenance hashes/item IDs, never source/rendered/model content, URLs, headers, or credentials. See [automation operations](../automation/operations.md).
 
 Shutdown flushes metrics before traces. Build metadata contains version, commit, runtime, and dependencies but no wall-clock build timestamp.
 

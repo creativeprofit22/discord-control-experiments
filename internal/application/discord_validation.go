@@ -200,6 +200,33 @@ func validateSpecific(command domain.Command) error {
 		return boundedName("name", c.Name, 1, MaxWebhookNameLength)
 	case domain.CreateMessage:
 		return validateMessage(c.Content, c.Embeds, c.Uploads)
+	case domain.StartForumThread:
+		if err := boundedName("name", c.Name, 1, 100); err != nil {
+			return err
+		}
+		if err := boundedName("content", c.Content, 1, MaxMessageContentLength); err != nil {
+			return err
+		}
+		if len(c.AppliedTags) > 5 {
+			return validation("applied_tags", "must contain at most 5 tags")
+		}
+	case domain.CreatePoll:
+		if err := boundedName("question", c.Question, 1, 300); err != nil {
+			return err
+		}
+		if len(c.Answers) < 2 || len(c.Answers) > 10 || c.DurationHours < 1 || c.DurationHours > 768 {
+			return validation("poll", "requires 2-10 answers and duration 1-768 hours")
+		}
+		for _, answer := range c.Answers {
+			if err := boundedName("answer", answer.Text, 1, 55); err != nil {
+				return err
+			}
+		}
+	case domain.ExecuteConfiguredWebhook:
+		if err := boundedName("alias", c.Alias, 1, 64); err != nil {
+			return err
+		}
+		return boundedName("content", c.Content, 1, MaxMessageContentLength)
 	case domain.ModifyMessage:
 		var embeds []domain.Embed
 		if c.Embeds != nil {

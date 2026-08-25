@@ -1,10 +1,10 @@
 # Discord Control Experiments
 
-A local-first, policy-gated Discord control service with MCP stdio, explicit Gateway and interaction boundaries, strict reference-only secrets, and OpenTelemetry-compatible diagnostics.
+A local-first, policy-gated Discord control service with REST operations, reconciliation, deterministic automation, MCP stdio, signed interactions, reference-only secrets, and OpenTelemetry-compatible diagnostics.
 
 ## Status
 
-The modular foundation and policy-gated Discord reconciliation workflow are implemented. Go 1.27.0 was selected by the committed [runtime benchmark](benchmarks/runtime/results/2026-08-21-windows-amd64.md).
+The modular Discord control plane, reconciliation workflow, moderation operations, and persisted deterministic automation runtime are implemented. Go 1.27.0 was selected by the committed [runtime benchmark](benchmarks/runtime/results/2026-08-21-windows-amd64.md).
 
 ## Build
 
@@ -13,7 +13,7 @@ $env:PATH = "$PWD\.tools\go\bin;$env:PATH"
 go build ./cmd/discord-control
 ```
 
-Use [configuration reference](docs/reference/configuration.md), [architecture](docs/architecture/index.md), [operator guide](docs/operations/operator-guide.md), and [reconciliation planning guide](docs/reconciliation/planning.md) for owned contracts.
+Use [configuration reference](docs/reference/configuration.md), [architecture](docs/architecture/index.md), [operator guide](docs/operations/operator-guide.md), [reconciliation planning](docs/reconciliation/planning.md), and [automation schema](docs/automation/schema.md) for owned contracts.
 
 ## Reconciliation
 
@@ -27,3 +27,7 @@ discord-control apply --config config.json --plan state/plan.json --plan-hash HA
 ```
 
 One-shot CLI policy uses principal `cli/local-process/os-process`; map that exact principal to one configured actor. `resume` without a guild flag requires that actor to have exactly one configured guild. See the [schema](docs/reconciliation/schema-v1.md) and [recovery runbook](docs/reconciliation/recovery.md).
+
+## Deterministic automation
+
+Automation is an optional local scheduler with strict typed workflows, persisted leases/checkpoints, constrained RSS/Atom and GitHub-release sources, reviewed AI summaries, and policy checks per guild. It never executes scripts, arbitrary HTTP, or MCP tools. Start with the [workflow schema](docs/automation/schema.md), [source and AI boundary](docs/automation/sources-and-ai.md), [runtime model](docs/automation/runtime.md), [recipes](docs/automation/recipes.md), and [operations runbook](docs/automation/operations.md).

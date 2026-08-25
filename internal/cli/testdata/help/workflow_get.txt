@@ -1,0 +1,3 @@
+Usage: discord-control workflow get --run VALUE
+
+Get persisted workflow run state

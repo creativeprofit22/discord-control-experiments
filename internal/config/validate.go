@@ -31,6 +31,9 @@ func validate(file File) error {
 	if err := validateInteractions(file.Interactions, file.SecretEnvironmentAllowlist); err != nil {
 		return err
 	}
+	if err := validateAutomation(file.Automation, file.SecretEnvironmentAllowlist); err != nil {
+		return err
+	}
 	if !environmentAllowed(file.Discord.Token.Name, file.SecretEnvironmentAllowlist) {
 		return errors.New("discord token environment name is not allowlisted")
 	}
@@ -98,6 +101,73 @@ func validateMCP(value MCP) error {
 	timeout, err := time.ParseDuration(value.CallTimeout)
 	if err != nil || timeout < time.Second || timeout > 5*time.Minute {
 		return errors.New("mcp callTimeout must be between 1s and 5m")
+	}
+	return nil
+}
+
+func validateAutomation(value Automation, allowlist []string) error {
+	if value.Enabled == nil || value.Summarizer.Enabled == nil {
+		return errors.New("automation enabled settings are required")
+	}
+	poll, e1 := time.ParseDuration(value.PollInterval)
+	lease, e2 := time.ParseDuration(value.LeaseDuration)
+	if e1 != nil || poll < time.Second || poll > time.Hour || e2 != nil || lease < 10*time.Second || lease > time.Hour {
+		return errors.New("invalid automation scheduler timing")
+	}
+	if value.WorkerCount < 1 || value.WorkerCount > 32 || value.MaxWorkflowBytes < 1024 || value.MaxWorkflowBytes > 1<<20 || value.MaxSteps < 1 || value.MaxSteps > 100 || value.MaxGuildsPerRun < 1 || value.MaxGuildsPerRun > 16 || value.MaxActionsPerRun < 1 || value.MaxActionsPerRun > 10000 || value.MaxDestructivePerRun < 0 || value.MaxDestructivePerRun > value.MaxActionsPerRun {
+		return errors.New("invalid automation limits")
+	}
+	if len(value.WorkflowPaths) > 128 || len(value.Sources) > 64 || len(value.CleanupChannels) > 256 {
+		return errors.New("automation paths, sources, or cleanup bindings exceed limits")
+	}
+	seenPaths, seenSources := map[string]bool{}, map[string]bool{}
+	for _, binding := range value.CleanupChannels {
+		parts := strings.Split(binding, ":")
+		if len(parts) != 2 || !validSnowflake(parts[0]) || !validSnowflake(parts[1]) {
+			return errors.New("cleanup channels must be guildId:channelId bindings")
+		}
+	}
+	for _, path := range value.WorkflowPaths {
+		normalized := strings.ReplaceAll(path, "\\", "/")
+		if normalized == "" || filepath.IsAbs(path) || seenPaths[normalized] {
+			return errors.New("automation workflow paths must be distinct, relative, and contained")
+		}
+		for _, part := range strings.Split(normalized, "/") {
+			if part == "" || part == "." || part == ".." {
+				return errors.New("automation workflow paths must be distinct, relative, and contained")
+			}
+		}
+		seenPaths[normalized] = true
+	}
+	for _, source := range value.Sources {
+		if !boundedIdentifier(source.Name, 64) || seenSources[source.Name] || source.MaxBodyBytes < 1024 || source.MaxBodyBytes > 8<<20 {
+			return errors.New("invalid or duplicate automation source")
+		}
+		seenSources[source.Name] = true
+		switch source.Kind {
+		case "rss":
+			u, err := url.Parse(source.URL)
+			if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" {
+				return errors.New("RSS source must be an explicit HTTPS URL without credentials or fragment")
+			}
+			if source.GitHubOwner != "" || source.GitHubRepo != "" {
+				return errors.New("RSS source forbids GitHub fields")
+			}
+		case "github_releases":
+			if source.URL != "" || !boundedIdentifier(source.GitHubOwner, 100) || !boundedIdentifier(source.GitHubRepo, 100) {
+				return errors.New("GitHub release source requires fixed owner and repo")
+			}
+		default:
+			return errors.New("unknown automation source kind")
+		}
+	}
+	if *value.Enabled && len(value.WorkflowPaths) == 0 {
+		return errors.New("enabled automation requires workflow paths")
+	}
+	if *value.Summarizer.Enabled {
+		if !boundedIdentifier(value.Summarizer.Model, 128) || value.Summarizer.APIKey.Source != "env" || !environmentAllowed(value.Summarizer.APIKey.Name, allowlist) {
+			return errors.New("enabled summarizer requires model and allowlisted environment API key")
+		}
 	}
 	return nil
 }
@@ -209,6 +279,9 @@ func validateWebhooks(webhooks []WebhookSecret, allowlist []string) error {
 		seen[webhook.Name] = true
 		if webhook.URL.Source != "env" || !environmentAllowed(webhook.URL.Name, allowlist) {
 			return errors.New("Discord webhook URL must use an allowlisted environment reference")
+		}
+		if (webhook.GuildID == "") != (webhook.ChannelID == "") || (webhook.GuildID != "" && (!validSnowflake(webhook.GuildID) || !validSnowflake(webhook.ChannelID))) {
+			return errors.New("Discord webhook metadata requires valid guildId and channelId together")
 		}
 	}
 	return nil

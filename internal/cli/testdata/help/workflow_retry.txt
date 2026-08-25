@@ -1,0 +1,3 @@
+Usage: discord-control workflow retry --run VALUE
+
+Retry a proven failed workflow

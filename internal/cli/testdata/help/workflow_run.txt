@@ -1,0 +1,3 @@
+Usage: discord-control workflow run --workflow VALUE --trigger VALUE
+
+Run a manual workflow

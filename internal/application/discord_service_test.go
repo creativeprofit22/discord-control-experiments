@@ -340,8 +340,8 @@ func TestForgedPrincipalAndPolicyErrorsDeny(t *testing.T) {
 
 func TestRegistryCompleteness(t *testing.T) {
 	catalog := CommandCatalog()
-	if len(catalog) != 60 {
-		t.Fatalf("catalog has %d entries, want 60", len(catalog))
+	if len(catalog) != 63 {
+		t.Fatalf("catalog has %d entries, want 63", len(catalog))
 	}
 	seen := map[string]bool{}
 	for _, spec := range catalog {

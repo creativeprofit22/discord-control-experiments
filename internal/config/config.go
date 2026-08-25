@@ -24,8 +24,41 @@ type Discord struct {
 }
 
 type WebhookSecret struct {
-	Name string          `json:"name"`
-	URL  SecretReference `json:"url"`
+	Name      string          `json:"name"`
+	GuildID   string          `json:"guildId,omitempty"`
+	ChannelID string          `json:"channelId,omitempty"`
+	URL       SecretReference `json:"url"`
+}
+
+type AutomationSource struct {
+	Name         string `json:"name"`
+	Kind         string `json:"kind"`
+	URL          string `json:"url,omitempty"`
+	GitHubOwner  string `json:"githubOwner,omitempty"`
+	GitHubRepo   string `json:"githubRepo,omitempty"`
+	MaxBodyBytes int64  `json:"maxBodyBytes,omitempty"`
+}
+
+type AutomationSummarizer struct {
+	Enabled *bool           `json:"enabled,omitempty"`
+	Model   string          `json:"model,omitempty"`
+	APIKey  SecretReference `json:"apiKey,omitempty"`
+}
+
+type Automation struct {
+	Enabled              *bool                `json:"enabled,omitempty"`
+	WorkflowPaths        []string             `json:"workflowPaths,omitempty"`
+	Sources              []AutomationSource   `json:"sources,omitempty"`
+	CleanupChannels      []string             `json:"cleanupChannels,omitempty"`
+	Summarizer           AutomationSummarizer `json:"summarizer,omitempty"`
+	PollInterval         string               `json:"pollInterval,omitempty"`
+	LeaseDuration        string               `json:"leaseDuration,omitempty"`
+	WorkerCount          int                  `json:"workerCount,omitempty"`
+	MaxWorkflowBytes     int64                `json:"maxWorkflowBytes,omitempty"`
+	MaxSteps             int                  `json:"maxSteps,omitempty"`
+	MaxGuildsPerRun      int                  `json:"maxGuildsPerRun,omitempty"`
+	MaxActionsPerRun     int                  `json:"maxActionsPerRun,omitempty"`
+	MaxDestructivePerRun int                  `json:"maxDestructivePerRun,omitempty"`
 }
 type MCP struct {
 	Enabled            *bool    `json:"enabled"`
@@ -161,6 +194,7 @@ type File struct {
 	Discord                    Discord         `json:"discord"`
 	MCP                        MCP             `json:"mcp"`
 	Interactions               Interactions    `json:"interactions,omitempty"`
+	Automation                 Automation      `json:"automation,omitempty"`
 	Observability              Observability   `json:"observability"`
 	Policy                     *Policy         `json:"policy,omitempty"`
 	Approvals                  *Approvals      `json:"approvals,omitempty"`
@@ -172,23 +206,27 @@ type File struct {
 }
 
 type Resolved struct {
-	Version                int
-	DiscordToken           Secret
-	DiscordWebhooks        map[string]Secret
-	SecretProvider         *EnvironmentSecretProvider
-	MCPEnabled             bool
-	MCP                    MCP
-	InteractionsEnabled    bool
-	Interactions           Interactions
-	InteractionCertificate Secret
-	InteractionPrivateKey  Secret
-	Observability          Observability
-	Policy                 Policy
-	Approvals              Approvals
-	Audit                  Audit
-	SecurityAlerts         SecurityAlerts
-	Reconciliation         Reconciliation
-	Moderation             Moderation
+	Version                 int
+	Discord                 Discord
+	DiscordToken            Secret
+	DiscordWebhooks         map[string]Secret
+	AutomationSummarizerKey Secret
+	SecretProvider          *EnvironmentSecretProvider
+	MCPEnabled              bool
+	MCP                     MCP
+	InteractionsEnabled     bool
+	Interactions            Interactions
+	AutomationEnabled       bool
+	Automation              Automation
+	InteractionCertificate  Secret
+	InteractionPrivateKey   Secret
+	Observability           Observability
+	Policy                  Policy
+	Approvals               Approvals
+	Audit                   Audit
+	SecurityAlerts          SecurityAlerts
+	Reconciliation          Reconciliation
+	Moderation              Moderation
 }
 
 type Diagnostics struct {
@@ -239,6 +277,43 @@ func applySecurityDefaults(file *File) {
 	}
 	if file.Interactions.TimestampSkew == "" {
 		file.Interactions.TimestampSkew = "5m"
+	}
+	if file.Automation.Enabled == nil {
+		value := false
+		file.Automation.Enabled = &value
+	}
+	if file.Automation.Summarizer.Enabled == nil {
+		value := false
+		file.Automation.Summarizer.Enabled = &value
+	}
+	if file.Automation.PollInterval == "" {
+		file.Automation.PollInterval = "30s"
+	}
+	if file.Automation.LeaseDuration == "" {
+		file.Automation.LeaseDuration = "2m"
+	}
+	if file.Automation.WorkerCount == 0 {
+		file.Automation.WorkerCount = 2
+	}
+	if file.Automation.MaxWorkflowBytes == 0 {
+		file.Automation.MaxWorkflowBytes = 64 << 10
+	}
+	if file.Automation.MaxSteps == 0 {
+		file.Automation.MaxSteps = 100
+	}
+	if file.Automation.MaxGuildsPerRun == 0 {
+		file.Automation.MaxGuildsPerRun = 16
+	}
+	if file.Automation.MaxActionsPerRun == 0 {
+		file.Automation.MaxActionsPerRun = 500
+	}
+	if file.Automation.MaxDestructivePerRun == 0 {
+		file.Automation.MaxDestructivePerRun = 25
+	}
+	for i := range file.Automation.Sources {
+		if file.Automation.Sources[i].MaxBodyBytes == 0 {
+			file.Automation.Sources[i].MaxBodyBytes = 1 << 20
+		}
 	}
 	if file.MCP.Mode == "" {
 		file.MCP.Mode = "read_only"
@@ -371,7 +446,7 @@ func Load(reader io.Reader, resolver SecretResolver) (Resolved, error) {
 		}
 		webhooks[configured.Name] = handle
 	}
-	var certificate, privateKey Secret
+	var certificate, privateKey, summarizerKey Secret
 	if *file.Interactions.Enabled && file.Interactions.TLS.Mode == "direct" {
 		certificate, err = provider.Secret(file.Interactions.TLS.Certificate)
 		if err != nil || certificate.Use(func(string) error { return nil }) != nil {
@@ -382,7 +457,13 @@ func Load(reader io.Reader, resolver SecretResolver) (Resolved, error) {
 			return Resolved{}, errors.New("required interactions TLS private key is unavailable")
 		}
 	}
-	return Resolved{Version: file.Version, DiscordToken: token, DiscordWebhooks: webhooks, SecretProvider: provider, MCPEnabled: *file.MCP.Enabled, MCP: file.MCP, InteractionsEnabled: *file.Interactions.Enabled, Interactions: file.Interactions, InteractionCertificate: certificate, InteractionPrivateKey: privateKey, Observability: file.Observability, Policy: *file.Policy, Approvals: *file.Approvals, Audit: *file.Audit, SecurityAlerts: *file.SecurityAlerts, Reconciliation: *file.Reconciliation, Moderation: *file.Moderation}, nil
+	if *file.Automation.Summarizer.Enabled {
+		summarizerKey, err = provider.Secret(file.Automation.Summarizer.APIKey)
+		if err != nil || summarizerKey.Use(func(string) error { return nil }) != nil {
+			return Resolved{}, errors.New("required automation summarizer environment secret is unavailable")
+		}
+	}
+	return Resolved{Version: file.Version, Discord: file.Discord, DiscordToken: token, DiscordWebhooks: webhooks, AutomationSummarizerKey: summarizerKey, SecretProvider: provider, MCPEnabled: *file.MCP.Enabled, MCP: file.MCP, InteractionsEnabled: *file.Interactions.Enabled, Interactions: file.Interactions, AutomationEnabled: *file.Automation.Enabled, Automation: file.Automation, InteractionCertificate: certificate, InteractionPrivateKey: privateKey, Observability: file.Observability, Policy: *file.Policy, Approvals: *file.Approvals, Audit: *file.Audit, SecurityAlerts: *file.SecurityAlerts, Reconciliation: *file.Reconciliation, Moderation: *file.Moderation}, nil
 }
 
 func (r Resolved) Diagnostics() Diagnostics {

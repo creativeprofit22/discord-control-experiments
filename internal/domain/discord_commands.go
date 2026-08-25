@@ -198,6 +198,38 @@ type CreateMessage struct {
 	AllowedMentions  *AllowedMentions
 	MessageReference *MessageReference
 }
+type StartForumThread struct {
+	CommandContext
+	ChannelID           ChannelID
+	Name                string
+	Content             string
+	AutoArchiveDuration *int
+	RateLimitPerUser    *int
+	AppliedTags         []string
+	AllowedMentions     *AllowedMentions
+}
+
+type PollAnswer struct {
+	Text string `json:"text"`
+}
+type CreatePoll struct {
+	CommandContext
+	ChannelID        ChannelID
+	Content          *string
+	Question         string
+	Answers          []PollAnswer
+	DurationHours    int
+	AllowMultiselect bool
+	AllowedMentions  *AllowedMentions
+}
+
+type ExecuteConfiguredWebhook struct {
+	CommandContext
+	Alias           string
+	Content         string
+	AllowedMentions *AllowedMentions
+}
+
 type ModifyMessage struct {
 	CommandContext
 	ChannelID       ChannelID
@@ -404,6 +436,16 @@ type DeleteScheduledEvent struct {
 
 // Command/result methods form the compile-time sealed catalog.
 func resultOf[R any]() (zero R) { return zero }
+
+func (StartForumThread) CommandName() string            { return "start_forum_thread" }
+func (StartForumThread) discordCommand()                {}
+func (StartForumThread) discordResult() Channel         { return Channel{} }
+func (CreatePoll) CommandName() string                  { return "create_poll" }
+func (CreatePoll) discordCommand()                      {}
+func (CreatePoll) discordResult() Message               { return Message{} }
+func (ExecuteConfiguredWebhook) CommandName() string    { return "execute_configured_webhook" }
+func (ExecuteConfiguredWebhook) discordCommand()        {}
+func (ExecuteConfiguredWebhook) discordResult() Message { return Message{} }
 
 func (GetCurrentUser) CommandName() string                               { return "get_current_user" }
 func (GetCurrentUser) discordCommand()                                   {}

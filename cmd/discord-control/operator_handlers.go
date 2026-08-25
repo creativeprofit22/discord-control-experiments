@@ -46,6 +46,41 @@ func addJobOperatorHandlers(handlers map[string]application.OperatorHandler, job
 	}
 }
 
+func addAutomationOperatorHandlers(handlers map[string]application.OperatorHandler, workflows *application.AutomationOperatorService) {
+	handlers["workflow.list"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.List(ctx, request.Invocation)
+		return application.OperatorResult{Kind: "WorkflowList", Value: value}, err
+	}
+	handlers["workflow.get"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.Get(ctx, request.Invocation, request.Values["--run"])
+		return application.OperatorResult{Kind: "WorkflowRun", Value: value}, err
+	}
+	handlers["workflow.validate"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.Validate(ctx, request.Invocation, request.Values["--workflow"])
+		return application.OperatorResult{Kind: "Workflow", Value: value}, err
+	}
+	handlers["workflow.run"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.Run(ctx, request.Invocation, request.Values["--workflow"], request.Values["--trigger"])
+		return application.OperatorResult{Kind: "WorkflowRun", Value: value}, err
+	}
+	handlers["workflow.approve"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.Approve(ctx, request.Invocation, request.Values["--run"], request.Values["--operation-hash"])
+		return application.OperatorResult{Kind: "WorkflowRun", Value: value}, err
+	}
+	handlers["workflow.retry"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.Retry(ctx, request.Invocation, request.Values["--run"])
+		return application.OperatorResult{Kind: "WorkflowRun", Value: value}, err
+	}
+	handlers["workflow.recover"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.Recover(ctx, request.Invocation, request.Values["--run"], request.Values["--decision"], request.Values["--evidence"])
+		return application.OperatorResult{Kind: "WorkflowRun", Value: value}, err
+	}
+	handlers["workflow.dead-letter.list"] = func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
+		value, err := workflows.DeadLetters(ctx, request.Invocation)
+		return application.OperatorResult{Kind: "WorkflowRunList", Value: value}, err
+	}
+}
+
 func addSupportOperatorHandlers(handlers map[string]application.OperatorHandler, root string, policyFacade *application.PolicyFacade, health *application.HealthService, diagnostics *application.DiagnosticBundleService, jobs *application.JobService) {
 	policyHandler := func(ctx context.Context, request application.OperatorRequest) (application.OperatorResult, error) {
 		view, err := policyFacade.Check(ctx, request.Invocation, domain.GuildID(request.Values["--guild"]), domain.Capability(request.Values["--capability"]), domain.ExecutionMode(request.Values["--mode"]))

@@ -17,6 +17,7 @@ var required = []string{
 	"docs/runbooks/README.md", "docs/runbooks/startup-failure.md", "docs/runbooks/secret-rotation.md", "docs/runbooks/security-incident.md",
 	"docs/reconciliation/schema-v1.md", "docs/reconciliation/schema-v2.md", "docs/reconciliation/migrations.md", "docs/reconciliation/snapshots.md", "docs/reconciliation/planning.md", "docs/reconciliation/recovery.md",
 	"docs/moderation/guide.md", "docs/moderation/action-matrix.md", "docs/moderation/automod-reference.md", "docs/moderation/escalation-policy.md", "docs/moderation/evidence-privacy-retention.md", "docs/moderation/appeal-export.md", "docs/moderation/lockdown-checklist.md", "docs/moderation/runbook.md",
+	"docs/automation/schema.md", "docs/automation/sources-and-ai.md", "docs/automation/runtime.md", "docs/automation/recipes.md", "docs/automation/operations.md",
 }
 
 var markdownLink = regexp.MustCompile(`\[[^]]*\]\(([^)]+)\)`)
@@ -51,7 +52,7 @@ func TestDocumentationContract(t *testing.T) {
 		if relative == "docs/reference/configuration.md" || relative == "docs/reference/capability-policy.md" {
 			expectedReviewDate = "2026-08-22"
 		}
-		if relative == "docs/adr/0003-dependency-update-policy.md" || strings.Contains(relative, "docs/moderation/") || relative == "docs/reconciliation/schema-v1.md" || relative == "docs/reconciliation/schema-v2.md" || relative == "docs/reconciliation/migrations.md" || relative == "docs/reference/configuration.md" || relative == "docs/reference/capability-policy.md" {
+		if relative == "docs/adr/0003-dependency-update-policy.md" || strings.Contains(relative, "docs/moderation/") || strings.Contains(relative, "docs/automation/") || relative == "docs/reconciliation/schema-v1.md" || relative == "docs/reconciliation/schema-v2.md" || relative == "docs/reconciliation/migrations.md" || relative == "docs/reference/configuration.md" || relative == "docs/reference/capability-policy.md" {
 			expectedReviewDate = "2026-08-23"
 		}
 		if !strings.Contains(text, "Owner: ") || !strings.Contains(text, "Last reviewed: "+expectedReviewDate) {

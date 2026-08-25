@@ -12,13 +12,16 @@ Discord bot tokens, webhook/callback tokens, TLS private keys, actor grants, app
 | CLI/config JSON | bounded UTF-8, duplicate/unknown-key rejection, strict enums, exact env allowlist, contained paths | composition settings and opaque secret handles |
 | local MCP/model | exact 2026-07-28 bounded stdio; fixed process principal/guild; policy/toolset/read-only discovery; closed schemas; model fields never authorize | `OperatorService` invocation only |
 | signed interactions | exact method/path/TLS-proxy checks; bounded untouched body; timestamp+body Ed25519 verification before strict JSON; dedup; signed user/guild principal | interaction application facade, bounded worker, fixed Discord callback only |
-| Gateway/jobs | Gateway remains uncomposed; jobs use typed application contracts | same application chokepoint |
+| Gateway/jobs | Gateway remains uncomposed; automation uses closed workflows, constrained egress, persisted leases/journals, and typed application ports | same application chokepoint |
+| feeds/model output | configured HTTPS sources, DNS/address/redirect/TLS/content/size limits, plain rendering, no model tools, reviewed operation hash | bounded data and reviewed Discord command only |
 | policy rules | exact principal→actor compilation; explicit guilds/capabilities/mode; no wildcard | pure typed decision only |
 | approval administration | authenticated human boundary, not a model tool; actor/hash/TTL binding | atomic in-memory consume port |
 | audit | allowlisted minimized event, dynamic redaction, bounds, append/sync/hash chain | contained restrictive JSONL plus head |
 | environment secret | resolved and redactor-registered immediately before use | narrow Discord transport callback |
 | telemetry | low-cardinality allowlists and dynamic redaction | configured logger/trace/metric exporter |
-| Discord command | sealed registry, resource extraction/ownership, fixed route/codec | fixed TLS API-v10 origin only |
+| Discord command | sealed registry, resource extraction/ownership, fixed route/codec; configured webhook secrets resolve only inside transport | fixed TLS API-v10 origin only |
+
+Automation's SSRF, injection, duplicate-effect, and AI controls are detailed in [sources and AI](../automation/sources-and-ai.md), [runtime recovery](../automation/runtime.md), and [operations](../automation/operations.md).
 
 ## Threats and controls
 

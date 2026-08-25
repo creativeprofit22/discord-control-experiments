@@ -1,0 +1,3 @@
+Usage: discord-control workflow validate --workflow VALUE
+
+Validate configured workflow bindings

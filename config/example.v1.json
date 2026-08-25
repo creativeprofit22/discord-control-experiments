@@ -29,7 +29,21 @@
     "callbackTimeout": "10s",
     "dedupTtl": "15m",
     "timestampSkew": "5m"
-  },
+	},
+	"automation": {
+		"enabled": false,
+		"workflowPaths": [],
+		"sources": [],
+		"cleanupChannels": [],
+		"pollInterval": "30s",
+		"leaseDuration": "2m",
+		"workerCount": 2,
+		"maxWorkflowBytes": 65536,
+		"maxSteps": 100,
+		"maxGuildsPerRun": 16,
+		"maxActionsPerRun": 500,
+		"maxDestructivePerRun": 25
+	},
   "observability": {
     "exporter": "none"
   },

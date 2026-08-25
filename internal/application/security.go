@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/ken-kai/discord-control-experiments/internal/domain"
@@ -17,6 +18,20 @@ type Invocation struct {
 	ActorID             domain.ActorID
 	reconciliation      *reconciliationAuthorization
 	lockdown            *lockdownAuthorization
+	automationReview    *automationReviewAuthorization
+}
+
+type automationReviewAuthorization struct {
+	grant  domain.ApprovalGrant
+	stepID string
+}
+
+func (a *automationReviewAuthorization) allows(actor domain.ActorID, command domain.Command) bool {
+	if a == nil || a.grant.ActorID != actor || a.grant.GuildID != command.GuildScope() {
+		return false
+	}
+	key := string(commandContext(command).ReconciliationKey)
+	return key == a.stepID || strings.HasPrefix(key, a.stepID+"-")
 }
 
 type lockdownAuthorization struct {

@@ -115,6 +115,43 @@ func (p Paths) LockPath(guildID domain.GuildID) (string, error) {
 	return filepath.Join(directory, "apply.lock"), nil
 }
 
+func (p Paths) AutomationDirectory() (string, error) {
+	path := filepath.Join(p.root, "automation")
+	if !contained(p.root, path) {
+		return "", fmt.Errorf("automation path escaped state directory")
+	}
+	if err := rejectSymlinkPath(p.root, path); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return "", fmt.Errorf("create automation state directory: %w", err)
+	}
+	return path, checkPrivateDirectory(path)
+}
+
+func (p Paths) AutomationPath(kind, id, extension string) (string, error) {
+	if !safeComponent(kind) || !safeComponent(id) || (extension != ".json" && extension != ".jsonl") {
+		return "", fmt.Errorf("invalid automation path component")
+	}
+	directory, err := p.AutomationDirectory()
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(directory, kind+"-"+id+extension)
+	if !contained(directory, path) {
+		return "", fmt.Errorf("automation path escaped state directory")
+	}
+	return path, nil
+}
+
+func (p Paths) AutomationLockPath() (string, error) {
+	directory, err := p.AutomationDirectory()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(directory, "transitions.lock"), nil
+}
+
 func contained(base, target string) bool {
 	relative, err := filepath.Rel(base, target)
 	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && !filepath.IsAbs(relative)

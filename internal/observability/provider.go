@@ -86,6 +86,8 @@ type Provider struct {
 	interactionHandlerActive      metric.Int64ObservableGauge
 	interactionHandlerActiveValue *atomic.Int64
 	interactionRegistrations      metric.Int64Counter
+	workflowEvents                metric.Int64Counter
+	workflowScheduleLag           metric.Float64Histogram
 	securityMonitor               *securityMonitor
 	build                         buildinfo.Info
 	redactor                      *Redactor
@@ -283,8 +285,16 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	workflowEvents, err := meter.Int64Counter("workflow.events")
+	if err != nil {
+		return nil, err
+	}
+	workflowScheduleLag, err := meter.Float64Histogram("workflow.schedule.lag", metric.WithUnit("ms"))
+	if err != nil {
+		return nil, err
+	}
 	monitor := newSecurityMonitor(options.Security, logger)
-	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, moderationActions: moderationActions, moderationDuration: moderationDuration, moderationHierarchyFailures: moderationHierarchyFailures, autoModerationDrift: autoModerationDrift, escalationOutcomes: escalationOutcomes, lockdownEvents: lockdownEvents, lockdownOperationCount: lockdownOperationCount, interactionVerification: interactionVerification, interactionAckDuration: interactionAckDuration, interactionDeadlineMisses: interactionDeadlineMisses, interactionDuplicates: interactionDuplicates, interactionDeferred: interactionDeferred, interactionCallbacks: interactionCallbacks, interactionCallbackDuration: interactionCallbackDuration, interactionApprovals: interactionApprovals, interactionSaturation: interactionSaturation, interactionQueueDepth: interactionQueueDepth, interactionQueueDepthValue: interactionQueueDepthValue, interactionHandlerActive: interactionHandlerActive, interactionHandlerActiveValue: interactionHandlerActiveValue, interactionRegistrations: interactionRegistrations, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
+	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, moderationActions: moderationActions, moderationDuration: moderationDuration, moderationHierarchyFailures: moderationHierarchyFailures, autoModerationDrift: autoModerationDrift, escalationOutcomes: escalationOutcomes, lockdownEvents: lockdownEvents, lockdownOperationCount: lockdownOperationCount, interactionVerification: interactionVerification, interactionAckDuration: interactionAckDuration, interactionDeadlineMisses: interactionDeadlineMisses, interactionDuplicates: interactionDuplicates, interactionDeferred: interactionDeferred, interactionCallbacks: interactionCallbacks, interactionCallbackDuration: interactionCallbackDuration, interactionApprovals: interactionApprovals, interactionSaturation: interactionSaturation, interactionQueueDepth: interactionQueueDepth, interactionQueueDepthValue: interactionQueueDepthValue, interactionHandlerActive: interactionHandlerActive, interactionHandlerActiveValue: interactionHandlerActiveValue, interactionRegistrations: interactionRegistrations, workflowEvents: workflowEvents, workflowScheduleLag: workflowScheduleLag, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
 	options.Redactor.SetInterventionHook(func() {
 		provider.RecordSecurityEvent(context.Background(), domain.SecurityEvent{Kind: "redaction_intervention", OccurredAt: time.Now()})
 	})
@@ -341,6 +351,24 @@ func otlpSignalEndpoint(endpoint, defaultPath string) (string, error) {
 	}
 	parsed.Path = defaultPath
 	return parsed.String(), nil
+}
+
+func (p *Provider) ObserveWorkflow(ctx context.Context, observation application.WorkflowObservation) {
+	if p == nil {
+		return
+	}
+	attributes := []attribute.KeyValue{attribute.String("workflow.event", observation.Event), attribute.String("workflow.outcome", observation.Outcome)}
+	p.workflowEvents.Add(ctx, 1, metric.WithAttributes(attributes...))
+	if observation.Event == "dead_letter" || observation.Event == "source_failure" || observation.Event == "partial_failure" || observation.Event == "lease_contention" || observation.Lag > time.Minute {
+		p.Logger.WarnContext(ctx, "workflow alert", "event", observation.Event, "outcome", observation.Outcome, "workflow_id", observation.WorkflowID, "run_id", observation.RunID)
+	}
+	if observation.Lag > 0 {
+		p.workflowScheduleLag.Record(ctx, float64(observation.Lag.Milliseconds()))
+	}
+	_, span := p.tracer.Start(ctx, "workflow."+observation.Event, trace.WithAttributes(
+		attribute.String("workflow.id", observation.WorkflowID), attribute.String("workflow.run_id", observation.RunID), attribute.String("workflow.guild_id", observation.GuildID), attribute.String("workflow.step_id", observation.StepID), attribute.String("workflow.outcome", observation.Outcome), attribute.Int("workflow.attempt", observation.Attempt), attribute.String("workflow.definition_hash", observation.Provenance.Definition), attribute.String("workflow.source_id", observation.Provenance.SourceID),
+	))
+	span.End()
 }
 
 func (p *Provider) Observe(ctx context.Context, operation domain.Operation, fn func(context.Context) error) error {

@@ -1,0 +1,3 @@
+Usage: discord-control workflow approve --run VALUE --operation-hash VALUE
+
+Resume reviewed workflow output

@@ -1494,6 +1494,106 @@
             "input"
           ],
           "type": "object"
+        },
+        "workflow approve": {
+          "additionalProperties": false,
+          "properties": {
+            "operation-hash": {
+              "type": "string"
+            },
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run",
+            "operation-hash"
+          ],
+          "type": "object"
+        },
+        "workflow dead-letter list": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "workflow get": {
+          "additionalProperties": false,
+          "properties": {
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run"
+          ],
+          "type": "object"
+        },
+        "workflow list": {
+          "additionalProperties": false,
+          "properties": {},
+          "required": [],
+          "type": "object"
+        },
+        "workflow recover": {
+          "additionalProperties": false,
+          "properties": {
+            "decision": {
+              "type": "string"
+            },
+            "evidence": {
+              "type": "string"
+            },
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run",
+            "decision",
+            "evidence"
+          ],
+          "type": "object"
+        },
+        "workflow retry": {
+          "additionalProperties": false,
+          "properties": {
+            "run": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run"
+          ],
+          "type": "object"
+        },
+        "workflow run": {
+          "additionalProperties": false,
+          "properties": {
+            "trigger": {
+              "type": "string"
+            },
+            "workflow": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "workflow",
+            "trigger"
+          ],
+          "type": "object"
+        },
+        "workflow validate": {
+          "additionalProperties": false,
+          "properties": {
+            "workflow": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "workflow"
+          ],
+          "type": "object"
         }
       },
       "type": "object"

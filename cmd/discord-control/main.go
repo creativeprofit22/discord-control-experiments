@@ -217,6 +217,12 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		return application.OperatorResult{}, jobErr
 	}
 	addJobOperatorHandlers(handlers, jobService)
+	automationScheduler, automationOperator, automationErr := buildAutomationRuntime(filepath.Dir(configPath), resolved, statePaths, discordClient, discordService, reconciliationService, approvalStore, approvalStore, policyService, auditSink, provider)
+	if automationErr != nil {
+		_ = auditSink.Close()
+		return application.OperatorResult{}, fmt.Errorf("initialize automation: %w", automationErr)
+	}
+	addAutomationOperatorHandlers(handlers, automationOperator)
 	policyFacade, facadeErr := application.NewPolicyFacade(policyService)
 	if facadeErr != nil {
 		_ = auditSink.Close()
@@ -228,6 +234,13 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 			checks = append(checks, application.HealthCheck{Name: "state", Status: "failed"})
 		} else {
 			checks = append(checks, application.HealthCheck{Name: "state", Status: "ok"})
+		}
+		if resolved.AutomationEnabled {
+			status := "ok"
+			if automationScheduler == nil {
+				status = "failed"
+			}
+			checks = append(checks, application.HealthCheck{Name: "automation", Status: status})
 		}
 		return checks
 	})
@@ -252,9 +265,9 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 		return application.OperatorResult{}, coordinatorErr
 	}
 	if command.Name == "run" {
-		if !resolved.MCPEnabled && !resolved.InteractionsEnabled {
+		if !resolved.MCPEnabled && !resolved.InteractionsEnabled && !resolved.AutomationEnabled {
 			_ = auditSink.Close()
-			return application.OperatorResult{}, errors.New("run requires MCP and/or interactions to be enabled")
+			return application.OperatorResult{}, errors.New("run requires MCP, interactions, and/or automation to be enabled")
 		}
 		var mcpLifecycle application.Lifecycle
 		var interactionLifecycle application.Lifecycle
@@ -290,6 +303,13 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 			interactionLifecycle = interactionTransport
 		}
 		lifecycles, lifecycleErr := runtimeLifecycles(discordClient, resolved.MCPEnabled, mcpLifecycle, resolved.InteractionsEnabled, interactionLifecycle)
+		if lifecycleErr == nil && resolved.AutomationEnabled {
+			if automationScheduler == nil {
+				lifecycleErr = errors.New("enabled automation scheduler is unavailable")
+			} else {
+				lifecycles = append(lifecycles, automationScheduler)
+			}
+		}
 		if lifecycleErr != nil {
 			_ = auditSink.Close()
 			return application.OperatorResult{}, lifecycleErr

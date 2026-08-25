@@ -1,0 +1,3 @@
+Usage: discord-control workflow list
+
+List configured deterministic workflows

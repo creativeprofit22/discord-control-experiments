@@ -1,0 +1,3 @@
+Usage: discord-control workflow recover --run VALUE --decision VALUE --evidence VALUE
+
+Resolve an uncertain workflow with evidence

@@ -15,6 +15,32 @@ const (
 	valid  = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":true,"guildId":"123456789012345678"},"observability":{"exporter":"none"}}`
 )
 
+func TestAutomationConfigDefaultsAndBoundaries(t *testing.T) {
+	resolved, err := Load(strings.NewReader(valid), resolver{"DISCORD_BOT_TOKEN": canary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.AutomationEnabled || resolved.Automation.WorkerCount != 2 || resolved.Automation.MaxSteps != 100 {
+		t.Fatalf("automation defaults = %#v", resolved.Automation)
+	}
+
+	explicit := `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":false},"observability":{"exporter":"none"},"secretEnvironmentAllowlist":["OPENAI_API_KEY"],"automation":{"enabled":true,"workflowPaths":["workflows/news.json"],"sources":[{"name":"releases","kind":"github_releases","githubOwner":"octocat","githubRepo":"hello-world"}],"summarizer":{"enabled":true,"model":"gpt-5-mini","apiKey":{"source":"env","name":"OPENAI_API_KEY"}}}}`
+	resolved, err = Load(strings.NewReader(explicit), resolver{"DISCORD_BOT_TOKEN": canary, "OPENAI_API_KEY": "summary-canary"})
+	if err != nil || !resolved.AutomationEnabled {
+		t.Fatalf("enabled automation: %#v, %v", resolved.Automation, err)
+	}
+	for _, mutation := range []string{
+		strings.Replace(explicit, `"workflows/news.json"`, `"../news.json"`, 1),
+		strings.Replace(explicit, `"github_releases"`, `"raw_http"`, 1),
+		strings.Replace(explicit, `"enabled":true,"workflowPaths"`, `"enabled":true,"unknownLimit":1,"workflowPaths"`, 1),
+		strings.Replace(explicit, `"OPENAI_API_KEY"`, `"UNLISTED_KEY"`, 2),
+	} {
+		if _, err := Load(strings.NewReader(mutation), resolver{"DISCORD_BOT_TOKEN": canary, "OPENAI_API_KEY": "summary-canary"}); err == nil {
+			t.Fatalf("accepted invalid automation config: %s", mutation)
+		}
+	}
+}
+
 type resolver map[string]string
 
 func (r resolver) ResolveEnvironment(name string) (string, bool) {

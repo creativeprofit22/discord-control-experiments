@@ -17,7 +17,9 @@ Use [the committed example](../../config/example.v1.json). Bot tokens and option
 
 Signed job commands authenticate with the exact `interactions/<user-id>/discord-ed25519` principal. Configure it as `{"adapter":"interactions","subject":"234567890123456789","authenticationMethod":"discord-ed25519"}` with the signed guild and only the needed `job.read`, `job.cancel`, or `job.resume` capabilities. Cancel and resume also require actor and policy `apply` mode; command confirmation and plan-scoped approval remain mandatory.
 
-`mcp.enabled: true` requires one numeric `guildId`. `mode` is `read_only`, `dry_run`, or `apply`; `toolsets` contains unique values from `build`, `moderation`, `news`, and `diagnostic`; `readOnly` independently strips mutations. Defaults are diagnostic-only/read-only, 1 MiB messages, four concurrent calls, and a 30-second call timeout. Bounds are 4 KiB–8 MiB, 1–32 calls, and 1 second–5 minutes. See [MCP setup](../mcp/setup.md).
+`mcp.enabled: true` requires one numeric `guildId`. `mode` is `read_only`, `dry_run`, or `apply`; `toolsets` contains unique values from `build`, `moderation`, `news`, and `diagnostic`; `readOnly` independently strips mutations. Defaults are diagnostic-only/read-only, 1 MiB messages, four concurrent calls, and a 30-second call timeout. See [MCP setup](../mcp/setup.md).
+
+`automation` defaults disabled. Enabling requires contained workflow paths and the exact `automation/local-scheduler/os-process` principal mapped to a policy actor. Scheduler timing, workers, workflow bytes, steps, guild/action/destructive ceilings, named sources, cleanup `guildId:channelId` bindings, webhook metadata, and optional summarizer model/environment secret are bounded. URLs exist only in administrator configuration. See [automation schema](../automation/schema.md) and [source/AI boundary](../automation/sources-and-ai.md).
 
 `observability.exporter` is `none` (default local no-egress behavior), `stderr`, or `otlp-http`. OTLP requires explicit HTTPS without credentials, query, or fragment. Diagnostics expose only config version, enabled adapters, and exporter name.
 

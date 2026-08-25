@@ -49,6 +49,33 @@ func TestExampleMCPConfigResolvesActorAndGuild(t *testing.T) {
 	}
 }
 
+func TestRunAutomationOnlyActorStartup(t *testing.T) {
+	t.Setenv("DISCORD_BOT_TOKEN", "composition-test-token")
+	root := t.TempDir()
+	workflow := `{"version":1,"id":"future-post","enabled":true,"trigger":{"kind":"once","at":"2099-01-01T00:00:00Z"},"targets":{"guildIds":["123456789012345678"]},"retry":{"maxAttempts":1,"initial":"1s","maximum":"1s"},"steps":[{"action":{"kind":"message","channelId":"223456789012345678","content":"hello"}}]}`
+	if err := os.WriteFile(filepath.Join(root, "workflow.json"), []byte(workflow), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(root, "config.json")
+	configJSON := `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":false},"automation":{"enabled":true,"workflowPaths":["workflow.json"]},"observability":{"exporter":"none"},"policy":{"mode":"apply","actors":[{"id":"automation-actor","principals":[{"adapter":"automation","subject":"local-scheduler","authenticationMethod":"os-process"}],"guilds":["123456789012345678"],"capabilities":["message.manage"],"mode":"apply"}]}}`
+	if err := os.WriteFile(configPath, []byte(configJSON), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command, err := cli.Parse([]string{"run", "--config", configPath})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	result, err := run(ctx, command, &bytes.Buffer{}, &bytes.Buffer{}, "automation-startup-test")
+	if err != nil {
+		t.Fatalf("automation-only startup failed: %v", err)
+	}
+	if result.Kind != "Runtime" {
+		t.Fatalf("startup result = %#v", result)
+	}
+}
+
 func TestRunMCPOnlyActorStartup(t *testing.T) {
 	t.Setenv("DISCORD_BOT_TOKEN", "composition-test-token")
 	configPath := filepath.Join(t.TempDir(), "config.json")

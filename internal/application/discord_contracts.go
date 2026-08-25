@@ -145,7 +145,7 @@ func commandResultType(name string) (reflect.Type, error) {
 		value = domain.GuildInspection{}
 	case "list_guild_channels", "reorder_channels":
 		value = []domain.Channel{}
-	case "get_channel", "create_channel", "modify_channel":
+	case "get_channel", "create_channel", "modify_channel", "start_forum_thread":
 		value = domain.Channel{}
 	case "delete_channel", "delete_role":
 		value = domain.DeleteResult{}
@@ -159,7 +159,7 @@ func commandResultType(name string) (reflect.Type, error) {
 		value = domain.Member{}
 	case "list_messages":
 		value = []domain.Message{}
-	case "get_message", "create_message", "modify_message":
+	case "get_message", "create_message", "modify_message", "create_poll", "execute_configured_webhook":
 		value = domain.Message{}
 	case "bulk_delete_messages":
 		value = domain.BulkDeleteResult{}

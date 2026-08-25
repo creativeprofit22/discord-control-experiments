@@ -39,6 +39,17 @@ func commandPayload(command domain.Command) (any, bool) {
 		return map[string]any{"type": c.Overwrite.Type, "allow": c.Overwrite.Allow, "deny": c.Overwrite.Deny}, true
 	case domain.CreateMessage:
 		return messagePayload(c), true
+	case domain.StartForumThread:
+		message := map[string]any{"content": c.Content, "allowed_mentions": c.AllowedMentions}
+		return map[string]any{"name": c.Name, "auto_archive_duration": c.AutoArchiveDuration, "rate_limit_per_user": c.RateLimitPerUser, "applied_tags": c.AppliedTags, "message": message}, true
+	case domain.CreatePoll:
+		answers := make([]map[string]any, len(c.Answers))
+		for i, answer := range c.Answers {
+			answers[i] = map[string]any{"poll_media": map[string]any{"text": answer.Text}}
+		}
+		return map[string]any{"content": c.Content, "allowed_mentions": c.AllowedMentions, "nonce": deterministicNonce(c.CommandContext), "enforce_nonce": true, "poll": map[string]any{"question": map[string]any{"text": c.Question}, "answers": answers, "duration": c.DurationHours, "allow_multiselect": c.AllowMultiselect, "layout_type": 1}}, true
+	case domain.ExecuteConfiguredWebhook:
+		return map[string]any{"content": c.Content, "allowed_mentions": c.AllowedMentions}, true
 	case domain.ModifyMember:
 		return modifyMemberPayload(c), true
 	}
@@ -160,7 +171,7 @@ func decodeResult(command domain.Command, body []byte) (any, error) {
 	case domain.ListGuildChannels, domain.ReorderChannels:
 		var v []domain.Channel
 		return v, decode(&v)
-	case domain.GetChannel, domain.CreateChannel, domain.ModifyChannel:
+	case domain.GetChannel, domain.CreateChannel, domain.ModifyChannel, domain.StartForumThread:
 		var v domain.Channel
 		return v, decode(&v)
 	case domain.DeleteChannel:
@@ -184,7 +195,7 @@ func decodeResult(command domain.Command, body []byte) (any, error) {
 	case domain.ListMessages:
 		var v []domain.Message
 		return v, decode(&v)
-	case domain.GetMessage, domain.CreateMessage, domain.ModifyMessage:
+	case domain.GetMessage, domain.CreateMessage, domain.ModifyMessage, domain.CreatePoll, domain.ExecuteConfiguredWebhook:
 		var v domain.Message
 		return v, decode(&v)
 	case domain.ListGuildWebhooks, domain.ListChannelWebhooks:

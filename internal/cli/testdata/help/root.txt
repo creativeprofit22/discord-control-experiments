@@ -84,7 +84,7 @@ Commands:
   role list                      list_guild_roles
   role reorder                   reorder_roles
   role update                    modify_role
-  run                            Run the MCP stdio service
+  run                            Run enabled local service lifecycles
   snapshot                       Capture a declarative guild snapshot
   version                        Print build and CLI API version
   webhook create                 create_webhook
@@ -93,6 +93,14 @@ Commands:
   webhook list-channel           list_channel_webhooks
   webhook list-guild             list_guild_webhooks
   webhook update                 modify_webhook
+  workflow approve               Resume reviewed workflow output
+  workflow dead-letter list      List terminal dead-letter workflows
+  workflow get                   Get persisted workflow run state
+  workflow list                  List configured deterministic workflows
+  workflow recover               Resolve an uncertain workflow with evidence
+  workflow retry                 Retry a proven failed workflow
+  workflow run                   Run a manual workflow
+  workflow validate              Validate configured workflow bindings
 
 Global flags:
   --api-version

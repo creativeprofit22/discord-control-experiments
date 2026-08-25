@@ -1002,7 +1002,7 @@ modify_role
 
 ## `run`
 
-Run the MCP stdio service
+Run enabled local service lifecycles
 
 - Handler: `run`
 - Output kind: `Runtime`
@@ -1103,3 +1103,91 @@ modify_webhook
   - `--guild` (string, required)
   - `--webhook` (string, required)
   - `--input` (input, required)
+
+## `workflow approve`
+
+Resume reviewed workflow output
+
+- Handler: `workflow.approve`
+- Output kind: `WorkflowRun`
+- Timeout: `workflow`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--run` (string, required)
+  - `--operation-hash` (string, required)
+
+## `workflow dead-letter list`
+
+List terminal dead-letter workflows
+
+- Handler: `workflow.dead-letter.list`
+- Output kind: `WorkflowRunList`
+- Timeout: `fast`
+- Mutation: `false`; destructive: `false`
+
+## `workflow get`
+
+Get persisted workflow run state
+
+- Handler: `workflow.get`
+- Output kind: `WorkflowRun`
+- Timeout: `fast`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--run` (string, required)
+
+## `workflow list`
+
+List configured deterministic workflows
+
+- Handler: `workflow.list`
+- Output kind: `WorkflowList`
+- Timeout: `fast`
+- Mutation: `false`; destructive: `false`
+
+## `workflow recover`
+
+Resolve an uncertain workflow with evidence
+
+- Handler: `workflow.recover`
+- Output kind: `WorkflowRun`
+- Timeout: `workflow`
+- Mutation: `true`; destructive: `true`
+- Flags:
+  - `--run` (string, required)
+  - `--decision` (string, required)
+  - `--evidence` (string, required)
+
+## `workflow retry`
+
+Retry a proven failed workflow
+
+- Handler: `workflow.retry`
+- Output kind: `WorkflowRun`
+- Timeout: `workflow`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--run` (string, required)
+
+## `workflow run`
+
+Run a manual workflow
+
+- Handler: `workflow.run`
+- Output kind: `WorkflowRun`
+- Timeout: `workflow`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--workflow` (string, required)
+  - `--trigger` (string, required)
+
+## `workflow validate`
+
+Validate configured workflow bindings
+
+- Handler: `workflow.validate`
+- Output kind: `Workflow`
+- Timeout: `fast`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--workflow` (string, required)

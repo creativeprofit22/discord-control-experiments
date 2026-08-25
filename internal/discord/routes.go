@@ -89,6 +89,15 @@ func resolveRoute(command domain.Command) (resolvedRoute, error) {
 	case domain.CreateMessage:
 		r.path = "/channels/" + id(c.ChannelID) + "/messages"
 		r.major = id(c.ChannelID)
+	case domain.StartForumThread:
+		r.path = "/channels/" + id(c.ChannelID) + "/threads"
+		r.major = id(c.ChannelID)
+	case domain.CreatePoll:
+		r.path = "/channels/" + id(c.ChannelID) + "/messages"
+		r.major = id(c.ChannelID)
+	case domain.ExecuteConfiguredWebhook:
+		r.path = "/configured-webhooks/" + c.Alias
+		r.major = g
 	case domain.ModifyMessage:
 		r.path = "/channels/" + id(c.ChannelID) + "/messages/" + id(c.MessageID)
 		r.major = id(c.ChannelID)

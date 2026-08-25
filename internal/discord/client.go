@@ -19,10 +19,17 @@ const userAgent = "DiscordBot (https://github.com/ken-kai/discord-control-experi
 
 type TokenUse func(func(string) error) error
 
+type configuredWebhook struct {
+	guildID   domain.GuildID
+	channelID domain.ChannelID
+	useURL    TokenUse
+}
+
 type Client struct {
 	useToken    TokenUse
 	httpClient  *http.Client
 	coordinator *rateLimitCoordinator
+	webhooks    map[string]configuredWebhook
 }
 
 func New(useToken TokenUse) (*Client, error) {
@@ -47,8 +54,16 @@ func newClient(useToken TokenUse, roundTripper http.RoundTripper) (*Client, erro
 	if useToken == nil {
 		return nil, errors.New("discord token use callback is required")
 	}
-	return &Client{useToken: useToken, httpClient: &http.Client{Transport: roundTripper, Timeout: 30 * time.Second}, coordinator: newRateLimitCoordinator(realClock{})}, nil
+	return &Client{useToken: useToken, httpClient: &http.Client{Transport: roundTripper, Timeout: 30 * time.Second}, coordinator: newRateLimitCoordinator(realClock{}), webhooks: map[string]configuredWebhook{}}, nil
 }
+func (c *Client) ConfigureAutomationWebhook(alias string, guildID domain.GuildID, channelID domain.ChannelID, useURL TokenUse) error {
+	if alias == "" || len(alias) > 64 || strings.ContainsAny(alias, "/\\?#") || guildID == "" || channelID == "" || useURL == nil {
+		return errors.New("invalid configured webhook metadata")
+	}
+	c.webhooks[alias] = configuredWebhook{guildID: guildID, channelID: channelID, useURL: useURL}
+	return nil
+}
+
 func (c *Client) Name() domain.Adapter        { return "discord" }
 func (c *Client) Start(context.Context) error { return nil }
 func (c *Client) Stop(context.Context) error  { return nil }
@@ -67,6 +82,9 @@ func (c *Client) execute(ctx context.Context, command domain.Command) (applicati
 	return c.executeRoute(ctx, command, route)
 }
 func (c *Client) executeRoute(ctx context.Context, command domain.Command, route resolvedRoute) (application.DiscordPortResult, error) {
+	if webhook, ok := command.(domain.ExecuteConfiguredWebhook); ok {
+		return c.executeConfiguredWebhook(ctx, webhook, route)
+	}
 	spec, _ := application.LookupCommandSpec(command.CommandName())
 	maxAttempts := 1
 	if spec.Retry != application.RetryUnsafe && !hasUploads(command) {
@@ -165,6 +183,81 @@ func (c *Client) executeAttempt(ctx context.Context, command domain.Command, rou
 	})
 	return result, err
 }
+func (c *Client) executeConfiguredWebhook(ctx context.Context, command domain.ExecuteConfiguredWebhook, route resolvedRoute) (application.DiscordPortResult, error) {
+	binding, ok := c.webhooks[command.Alias]
+	if !ok || binding.guildID != command.GuildID {
+		return application.DiscordPortResult{}, &domain.InvariantError{Detail: "configured webhook binding unavailable"}
+	}
+	body, contentType, err := requestBody(command)
+	if err != nil {
+		return application.DiscordPortResult{}, err
+	}
+	var result application.DiscordPortResult
+	err = binding.useURL(func(secretURL string) error {
+		endpoint, parseErr := url.Parse(secretURL)
+		if parseErr != nil || endpoint == nil {
+			return errors.New("configured webhook URL is invalid")
+		}
+		parts := strings.Split(endpoint.EscapedPath(), "/")
+		if endpoint.Scheme != "https" || endpoint.Host != "discord.com" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" || len(parts) != 5 || parts[1] != "api" || parts[2] != "webhooks" || parts[3] == "" || parts[4] == "" {
+			return errors.New("configured webhook URL is invalid")
+		}
+		query := endpoint.Query()
+		query.Set("wait", "true")
+		endpoint.RawQuery = query.Encode()
+		request, requestErr := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), body)
+		if requestErr != nil {
+			return errors.New("build configured webhook request")
+		}
+		request.Header.Set("User-Agent", userAgent)
+		request.Header.Set("Accept", "application/json")
+		request.Header.Set("Content-Type", contentType)
+		lease, acquireErr := c.coordinator.Acquire(ctx, route.method, route.template, route.major)
+		if acquireErr != nil {
+			return &domain.CancellationError{Err: acquireErr}
+		}
+		defer lease.Release()
+		client := *c.httpClient
+		client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+		response, exchangeErr := client.Do(request)
+		result.Attempts = 1
+		if exchangeErr != nil {
+			result.Sent, result.Uncertain = true, true
+			return &domain.TransportError{Uncertain: true, Err: errors.New("webhook HTTP exchange failed")}
+		}
+		result.Sent = true
+		defer response.Body.Close()
+		if updateErr := lease.Update(response.Header, response.StatusCode); updateErr != nil {
+			return &domain.RetryExhaustedError{Attempts: 1, Reason: "malformed rate-limit headers"}
+		}
+		limit := application.MaxJSONResponseBytes
+		if response.StatusCode >= 400 {
+			limit = application.MaxErrorResponseBytes
+		}
+		data, readErr := readBounded(response.Body, limit)
+		if readErr != nil {
+			result.Uncertain = true
+			return readErr
+		}
+		result.StatusClass = fmt.Sprintf("%dxx", response.StatusCode/100)
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return decodeDiscordError(response.StatusCode, data)
+		}
+		value, decodeErr := decodeResult(command, data)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		message, ok := value.(domain.Message)
+		if !ok || message.ChannelID != binding.channelID {
+			result.Uncertain = true
+			return errors.New("configured webhook response channel mismatch")
+		}
+		result.Value = value
+		return nil
+	})
+	return result, err
+}
+
 func retryableError(err error, retryClass application.RetryClass) bool {
 	var apiErr *domain.DiscordAPIError
 	if errors.As(err, &apiErr) {
@@ -294,6 +387,12 @@ func extractContext(command domain.Command) domain.CommandContext {
 	case domain.GetMessage:
 		return c.CommandContext
 	case domain.CreateMessage:
+		return c.CommandContext
+	case domain.StartForumThread:
+		return c.CommandContext
+	case domain.CreatePoll:
+		return c.CommandContext
+	case domain.ExecuteConfiguredWebhook:
 		return c.CommandContext
 	case domain.ModifyMessage:
 		return c.CommandContext
