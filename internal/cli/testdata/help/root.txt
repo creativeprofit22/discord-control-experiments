@@ -86,6 +86,10 @@ Commands:
   role update                    modify_role
   run                            Run enabled local service lifecycles
   snapshot                       Capture a declarative guild snapshot
+  state backup                   Create a deterministic offline configuration and state backup
+  state restore                  Restore a verified backup into new staging
+  state validate                 Validate upgrade and rollback compatibility
+  state verify                   Verify a backup archive without extracting it
   version                        Print build and CLI API version
   webhook create                 create_webhook
   webhook delete                 delete_webhook

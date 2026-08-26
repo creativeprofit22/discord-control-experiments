@@ -131,6 +131,7 @@ func (p *Provider) RecordSecurityEvent(ctx context.Context, event domain.Securit
 	if p == nil {
 		return
 	}
+	ctx = WithCorrelationID(ctx, event.CorrelationID)
 	attrs := metric.WithAttributes(attribute.String("security.event.kind", string(event.Kind)), attribute.String("security.policy.reason", string(event.Reason)), attribute.String("security.execution.mode", string(event.Mode)), attribute.String("security.destructive.class", string(event.DestructiveClass)))
 	p.securityEvents.Add(ctx, 1, attrs)
 	immediate := event.Kind == "cross_guild" || event.Kind == "policy_error" || event.Kind == "approval_bypass" || event.Kind == "approval_invalid" || event.Kind == "redaction_intervention" || event.Kind == "audit_precommit_failure" || event.Kind == "audit_completion_failure"

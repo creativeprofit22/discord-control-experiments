@@ -1,0 +1,3 @@
+Usage: discord-control state verify --backup VALUE
+
+Verify a backup archive without extracting it

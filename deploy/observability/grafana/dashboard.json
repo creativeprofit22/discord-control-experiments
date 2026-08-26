@@ -1,0 +1,26 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "id": null,
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Process availability", "targets": [{"expr": "up{job=\"discord-control\"}", "refId": "A"}], "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}},
+    {"id": 2, "type": "text", "title": "Capability support", "options": {"mode": "markdown", "content": "**Supported:** CLI, MCP stdio, signed interactions, automation, reconciliation, Discord REST  \\n**Unsupported:** Discord Gateway and identify"}, "gridPos": {"h": 4, "w": 12, "x": 6, "y": 0}},
+    {"id": 3, "type": "timeseries", "title": "CLI and MCP errors", "targets": [{"expr": "rate(discord_cli_failure_count_total[5m])", "refId": "A"}, {"expr": "discord_control:mcp_error_ratio5m", "refId": "B"}], "gridPos": {"h": 7, "w": 12, "x": 0, "y": 4}},
+    {"id": 4, "type": "timeseries", "title": "Discord latency, errors, retries and 429 pressure", "targets": [{"expr": "histogram_quantile(0.99, sum by (le) (rate(discord_rest_request_duration_milliseconds_bucket[5m])))", "refId": "A"}, {"expr": "discord_control:rest_error_ratio5m", "refId": "B"}, {"expr": "rate(discord_rest_retry_count_total[5m])", "refId": "C"}], "gridPos": {"h": 7, "w": 12, "x": 12, "y": 4}},
+    {"id": 5, "type": "timeseries", "title": "Interaction acknowledgement and queue", "targets": [{"expr": "discord_control:interaction_ack_p99_seconds", "refId": "A"}, {"expr": "discord_interaction_queue_depth", "refId": "B"}, {"expr": "rate(discord_interaction_ack_deadline_miss_count_total[5m])", "refId": "C"}], "gridPos": {"h": 7, "w": 12, "x": 0, "y": 11}},
+    {"id": 6, "type": "timeseries", "title": "Scheduler lag, dead letters and source failures", "targets": [{"expr": "discord_control:scheduler_lag_p99_seconds", "refId": "A"}, {"expr": "rate(workflow_events_total{workflow_event=~\"dead_letter|source_failure\"}[5m])", "refId": "B"}], "gridPos": {"h": 7, "w": 12, "x": 12, "y": 11}},
+    {"id": 7, "type": "timeseries", "title": "Policy, destructive and lockdown activity", "targets": [{"expr": "rate(discord_security_event_count_total{security_event_kind=~\"policy_denial|destructive_apply|moderation_destructive_apply\"}[5m])", "refId": "A"}, {"expr": "rate(discord_moderation_lockdown_count_total[5m])", "refId": "B"}], "gridPos": {"h": 7, "w": 12, "x": 0, "y": 18}},
+    {"id": 8, "type": "timeseries", "title": "Reconciliation drift and partial outcomes", "targets": [{"expr": "rate(discord_reconciliation_drift_count_total[5m])", "refId": "A"}, {"expr": "rate(discord_reconciliation_partial_count_total[5m])", "refId": "B"}], "gridPos": {"h": 7, "w": 12, "x": 12, "y": 18}},
+    {"id": 9, "type": "timeseries", "title": "Redaction, audit and exporter failures", "targets": [{"expr": "rate(discord_telemetry_redaction_interventions_total[5m]) + rate(discord_security_event_count_total{security_event_kind=~\"audit_precommit_failure|audit_completion_failure\"}[5m])", "refId": "A"}, {"expr": "rate(discord_telemetry_export_failed_total[5m])", "refId": "B"}], "gridPos": {"h": 7, "w": 12, "x": 0, "y": 25}},
+    {"id": 10, "type": "stat", "title": "Release build age", "targets": [{"expr": "time() - max(discord_release_build_timestamp_seconds)", "refId": "A"}], "gridPos": {"h": 7, "w": 12, "x": 12, "y": 25}}
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["discord-control", "production-readiness"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "utc",
+  "title": "Discord Control Operations",
+  "uid": "discord-control-operations",
+  "version": 1
+}

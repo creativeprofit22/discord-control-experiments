@@ -1,0 +1,3 @@
+Usage: discord-control state restore --backup VALUE --staging VALUE
+
+Restore a verified backup into new staging

@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: discord-control
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards/discord-control
+      foldersFromFilesStructure: false

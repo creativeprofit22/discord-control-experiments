@@ -26,9 +26,10 @@ func (p *Provider) StartMCPInvocation(ctx context.Context, tool string, correlat
 		return ctx, nil
 	}
 	tool = boundedMCPTool(tool)
+	ctx = WithCorrelationID(ctx, correlation)
 	ctx, span := p.tracer.Start(ctx, "mcp.tool", trace.WithAttributes(
 		attribute.String("mcp.tool", tool),
-		attribute.String("correlation.id", boundedCorrelation(correlation)),
+		attribute.String(FieldCorrelationID, boundedCorrelation(correlation)),
 	))
 	return ctx, func(result string, policyReason domain.PolicyReason, duration time.Duration) {
 		result = boundedMCPResult(result)

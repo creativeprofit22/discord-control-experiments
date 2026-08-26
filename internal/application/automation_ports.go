@@ -85,6 +85,7 @@ type AutomationActionExecutor interface {
 }
 
 type WorkflowObservation struct {
+	CorrelationID                      domain.CorrelationID
 	WorkflowID, RunID, GuildID, StepID string
 	Event, Outcome                     string
 	Lag                                time.Duration

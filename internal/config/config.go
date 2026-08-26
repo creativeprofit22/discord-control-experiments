@@ -102,8 +102,9 @@ type Interactions struct {
 	TimestampSkew         string                  `json:"timestampSkew,omitempty"`
 }
 type Observability struct {
-	Exporter string `json:"exporter"`
-	Endpoint string `json:"endpoint,omitempty"`
+	Exporter         string  `json:"exporter"`
+	Endpoint         string  `json:"endpoint,omitempty"`
+	TraceSampleRatio float64 `json:"traceSampleRatio,omitempty"`
 }
 type PolicyPrincipal struct {
 	Adapter              string `json:"adapter"`
@@ -241,6 +242,9 @@ type Diagnostics struct {
 type SecretResolver interface{ ResolveEnvironment(string) (string, bool) }
 
 func applySecurityDefaults(file *File) {
+	if file.Observability.TraceSampleRatio == 0 {
+		file.Observability.TraceSampleRatio = 0.1
+	}
 	if file.Interactions.Enabled == nil {
 		value := false
 		file.Interactions.Enabled = &value

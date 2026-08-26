@@ -1,0 +1,79 @@
+groups:
+  - name: discord-control-recording
+    interval: 30s
+    rules:
+      - record: discord_control:rest_error_ratio5m
+        expr: sum(rate(discord_rest_request_count_total{http_response_status_class=~"5xx|network_error"}[5m])) / clamp_min(sum(rate(discord_rest_request_count_total[5m])), 1)
+      - record: discord_control:mcp_error_ratio5m
+        expr: sum(rate(discord_mcp_invocation_count_total{mcp_result!~"ok|plan"}[5m])) / clamp_min(sum(rate(discord_mcp_invocation_count_total[5m])), 1)
+      - record: discord_control:interaction_ack_p99_seconds
+        expr: histogram_quantile(0.99, sum by (le) (rate(discord_interaction_ack_duration_milliseconds_bucket[5m]))) / 1000
+      - record: discord_control:scheduler_lag_p99_seconds
+        expr: histogram_quantile(0.99, sum by (le) (rate(workflow_schedule_lag_milliseconds_bucket[5m]))) / 1000
+  - name: discord-control-pages
+    rules:
+      - alert: DiscordControlUnavailable
+        expr: up{job="discord-control"} == 0
+        for: 5m
+        labels: {severity: page, owner: operations}
+        annotations: {summary: "Discord control is unavailable", runbook: "docs/runbooks/startup-failure.md"}
+      - alert: InteractionAcknowledgementDeadlineMisses
+        expr: increase(discord_interaction_ack_deadline_miss_count_total[5m]) >= 3
+        labels: {severity: page, owner: operations}
+        annotations: {summary: "Interaction acknowledgements are missing deadlines", runbook: "docs/runbooks/discord-outage.md"}
+      - alert: DiscordRESTFailures
+        expr: discord_control:rest_error_ratio5m > 0.10
+        for: 15m
+        labels: {severity: page, owner: operations}
+        annotations: {summary: "Discord REST failure ratio exceeds 10%", runbook: "docs/runbooks/discord-outage.md"}
+      - alert: AuditWriteFailure
+        expr: increase(discord_security_event_count_total{security_event_kind=~"audit_precommit_failure|audit_completion_failure"}[5m]) > 0
+        labels: {severity: page, owner: security}
+        annotations: {summary: "Required audit persistence failed", runbook: "docs/runbooks/audit-investigation.md"}
+  - name: discord-control-tickets
+    rules:
+      - alert: DiscordRateLimitPressure
+        expr: increase(discord_rest_retry_count_total{discord_retry_reason="rate_limit"}[15m]) > 20
+        for: 10m
+        labels: {severity: ticket, owner: operations}
+        annotations: {summary: "Discord rate-limit retries are elevated", runbook: "docs/runbooks/discord-outage.md"}
+      - alert: InteractionQueueSaturated
+        expr: max_over_time(discord_interaction_queue_depth[10m]) >= 60 or increase(discord_interaction_saturation_count_total[10m]) > 0
+        for: 5m
+        labels: {severity: ticket, owner: operations}
+        annotations: {summary: "Interaction work queue is saturated", runbook: "docs/runbooks/stuck-workflow.md"}
+      - alert: SchedulerLagHigh
+        expr: discord_control:scheduler_lag_p99_seconds > 300
+        for: 15m
+        labels: {severity: ticket, owner: operations}
+        annotations: {summary: "Automation scheduler lag exceeds five minutes", runbook: "docs/runbooks/stuck-workflow.md"}
+      - alert: PolicyDenialSpike
+        expr: increase(discord_security_event_count_total{security_event_kind="policy_denial"}[5m]) >= 10
+        labels: {severity: ticket, owner: security}
+        annotations: {summary: "Policy denials spiked", runbook: "docs/runbooks/audit-investigation.md"}
+      - alert: DestructiveOrLockdownSpike
+        expr: increase(discord_security_event_count_total{security_event_kind=~"destructive_apply|moderation_destructive_apply"}[5m]) >= 5 or increase(discord_moderation_lockdown_count_total[5m]) >= 3
+        labels: {severity: ticket, owner: security}
+        annotations: {summary: "Destructive or lockdown activity spiked", runbook: "docs/runbooks/security-incident.md"}
+      - alert: ReconciliationDriftOrPartial
+        expr: increase(discord_reconciliation_drift_count_total[15m]) > 20 or increase(discord_reconciliation_partial_count_total[15m]) > 0
+        labels: {severity: ticket, owner: maintainers}
+        annotations: {summary: "Reconciliation drift or partial outcomes detected", runbook: "docs/runbooks/reconciliation-recovery.md"}
+      - alert: WorkflowDeadLettersOrSourceFailures
+        expr: increase(workflow_events_total{workflow_event=~"dead_letter|source_failure"}[15m]) > 0
+        labels: {severity: ticket, owner: operations}
+        annotations: {summary: "Automation dead letter or source failure detected", runbook: "docs/runbooks/stuck-workflow.md"}
+      - alert: RedactionIntervention
+        expr: increase(discord_telemetry_redaction_interventions_total[5m]) > 0
+        labels: {severity: ticket, owner: security}
+        annotations: {summary: "Telemetry redactor intercepted a registered secret", runbook: "docs/runbooks/security-incident.md"}
+      - alert: TelemetryExporterFailures
+        expr: increase(discord_telemetry_export_failed_total[15m]) > 0
+        for: 5m
+        labels: {severity: ticket, owner: operations}
+        annotations: {summary: "Telemetry exporter is dropping spans", runbook: "docs/runbooks/startup-failure.md"}
+      - alert: ReleaseBuildStale
+        expr: time() - max(discord_release_build_timestamp_seconds) > 2592000
+        for: 1h
+        labels: {severity: ticket, owner: maintainers}
+        annotations: {summary: "Deployed release build is older than 30 days", runbook: "docs/operations/deployment.md"}

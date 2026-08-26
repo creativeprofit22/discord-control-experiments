@@ -22,4 +22,6 @@ const (
 	FieldResourceKind   = "reconciliation.resource_kind"
 	FieldRisk           = "reconciliation.risk"
 	FieldOutcome        = "reconciliation.outcome"
+	FieldTraceID        = "trace_id"
+	FieldSpanID         = "span_id"
 )

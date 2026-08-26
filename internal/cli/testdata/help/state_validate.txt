@@ -1,0 +1,3 @@
+Usage: discord-control state validate [--backup VALUE]
+
+Validate upgrade and rollback compatibility

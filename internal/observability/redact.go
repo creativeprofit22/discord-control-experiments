@@ -6,13 +6,15 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Redactor struct {
 	mu            sync.RWMutex
 	values        []string
 	hook          func()
-	interventions atomic.Uint64
+	interventions atomic.Int64
 }
 
 func NewRedactor(values ...string) *Redactor {
@@ -72,7 +74,7 @@ func (r *Redactor) Sanitize(value string) (string, bool) {
 
 func (r *Redactor) String(value string) string { sanitized, _ := r.Sanitize(value); return sanitized }
 
-func (r *Redactor) Interventions() uint64 {
+func (r *Redactor) Interventions() int64 {
 	if r == nil {
 		return 0
 	}
@@ -90,6 +92,12 @@ func (h redactingHandler) Enabled(ctx context.Context, level slog.Level) bool {
 func (h redactingHandler) Handle(ctx context.Context, record slog.Record) error {
 	copy := slog.NewRecord(record.Time, record.Level, h.redactor.String(record.Message), record.PC)
 	record.Attrs(func(attr slog.Attr) bool { copy.AddAttrs(h.redactAttr(attr)); return true })
+	if correlation := correlationFromContext(ctx); correlation != "" {
+		copy.AddAttrs(slog.String(FieldCorrelationID, correlation))
+	}
+	if span := trace.SpanContextFromContext(ctx); span.IsValid() {
+		copy.AddAttrs(slog.String(FieldTraceID, span.TraceID().String()), slog.String(FieldSpanID, span.SpanID().String()))
+	}
 	return h.next.Handle(ctx, copy)
 }
 func (h redactingHandler) WithAttrs(attrs []slog.Attr) slog.Handler {

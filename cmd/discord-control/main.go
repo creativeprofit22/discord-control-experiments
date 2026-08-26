@@ -98,6 +98,7 @@ func executeCLI(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	defer cancel()
+	commandContext = observability.WithCorrelationID(commandContext, correlationID)
 	started := time.Now()
 	result, runErr := run(commandContext, command, stdout, stderr, correlationID)
 	runErr = cli.NormalizeCancellation(commandContext, signalContext, runErr)
@@ -137,6 +138,9 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 	if command.Name == "version" || command.Name == "help" || command.Name == "completion" {
 		return cli.Dispatch(ctx, nil, command, cli.DispatchOptions{Version: buildinfo.Version, Commit: buildinfo.Commit})
 	}
+	if command.Handler == "state.verify" || command.Handler == "state.restore" {
+		return runPortableStateCommand(command)
+	}
 	file, err := os.Open(command.ConfigPath)
 	if err != nil {
 		return application.OperatorResult{}, fmt.Errorf("open configuration: %w", err)
@@ -145,6 +149,9 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 	resolved, err := config.Load(file, config.EnvironmentResolver{Lookup: os.LookupEnv})
 	if err != nil {
 		return application.OperatorResult{}, err
+	}
+	if command.Handler == "state.backup" || command.Handler == "state.validate" {
+		return runConfiguredStateCommand(ctx, command, resolved)
 	}
 
 	redactor := observability.NewRedactor()
@@ -162,7 +169,7 @@ func run(ctx context.Context, command cli.Command, stdout, stderr io.Writer, cor
 	moderationDestructiveWindow, _ := time.ParseDuration(resolved.SecurityAlerts.ModerationDestructiveWindow)
 	lockdownPartialWindow, _ := time.ParseDuration(resolved.SecurityAlerts.LockdownPartialFailureWindow)
 	securityOptions := observability.SecurityOptions{DenialThreshold: resolved.SecurityAlerts.DenialThreshold, DenialWindow: denialWindow, DestructiveThreshold: resolved.SecurityAlerts.DestructiveThreshold, DestructiveWindow: destructiveWindow, SignatureFailureThreshold: resolved.SecurityAlerts.SignatureFailureThreshold, SignatureFailureWindow: signatureWindow, AckDeadlineMissThreshold: resolved.SecurityAlerts.AckDeadlineMissThreshold, AckDeadlineMissWindow: ackMissWindow, CallbackFailureThreshold: resolved.SecurityAlerts.CallbackFailureThreshold, CallbackFailureWindow: callbackFailureWindow, HandlerSaturationThreshold: resolved.SecurityAlerts.HandlerSaturationThreshold, HandlerSaturationWindow: saturationWindow, ModerationDestructiveThreshold: resolved.SecurityAlerts.ModerationDestructiveThreshold, ModerationDestructiveWindow: moderationDestructiveWindow, LockdownPartialFailureThreshold: resolved.SecurityAlerts.LockdownPartialFailureThreshold, LockdownPartialFailureWindow: lockdownPartialWindow}
-	provider, err := observability.New(ctx, observability.Options{Writer: stderr, Exporter: resolved.Observability.Exporter, Endpoint: resolved.Observability.Endpoint, Build: buildinfo.Current(), Redactor: redactor, Security: securityOptions})
+	provider, err := observability.New(ctx, observability.Options{Writer: stderr, Exporter: resolved.Observability.Exporter, Endpoint: resolved.Observability.Endpoint, SampleRatio: resolved.Observability.TraceSampleRatio, Build: buildinfo.Current(), Redactor: redactor, Security: securityOptions})
 	if err != nil {
 		return application.OperatorResult{}, fmt.Errorf("initialize observability: %w", err)
 	}

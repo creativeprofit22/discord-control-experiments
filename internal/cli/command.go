@@ -112,7 +112,7 @@ func lookupDefinition(args []string) (Definition, int, bool) {
 }
 
 func commandRequiresConfig(path string) bool {
-	return path != "version" && path != "help" && !strings.HasPrefix(path, "completion ")
+	return path != "version" && path != "help" && path != "state verify" && path != "state restore" && !strings.HasPrefix(path, "completion ")
 }
 
 func validateFlagValue(flag FlagDefinition, value string) error {

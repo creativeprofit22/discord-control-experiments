@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "discord-control.documented-commands/v1",
+  "commands": [
+    {"name": "version-json", "argv": ["{binary}", "version", "--format", "json"]},
+    {"name": "bash-completion", "argv": ["{binary}", "completion", "bash"]},
+    {"name": "recovery-and-incident-drills", "argv": ["{go}", "run", "./tools/drills", "{evidence}"]}
+  ]
+}

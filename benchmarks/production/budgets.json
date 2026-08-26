@@ -1,0 +1,11 @@
+{
+  "startup_ms": {"baseline": 1176.576, "limit": 2500},
+  "peak_rss_bytes": {"baseline": 75427840, "limit": 104857600},
+  "rest_p99_ms": {"baseline": 0.994, "limit": 5},
+  "rest_requests_per_second": {"baseline": 112578.58, "limit": 20000, "minimum": true},
+  "interaction_ack_p99_ms": {"baseline": 0.006, "limit": 1},
+  "scheduler_lag_p99_ms": {"baseline": 1.165, "limit": 10},
+  "discord_degraded_ms": {"baseline": 301, "limit": 750},
+  "duplicate_mutations": {"baseline": 0, "limit": 0},
+  "memory_growth_bytes_per_hour": {"baseline": 180764444, "limit": 268435456}
+}

@@ -150,7 +150,7 @@ func TestSignedInteractionCarriesOneTraceAndCorrelationThroughCallback(t *testin
 			case "interaction.stage":
 				stages[item.Value.AsString()] = true
 			case "interaction.outcome":
-			case "correlation.id":
+			case "correlation_id":
 				if item.Value.AsString() != string(correlationID) {
 					t.Fatalf("span correlation = %q, want %q", item.Value.AsString(), correlationID)
 				}

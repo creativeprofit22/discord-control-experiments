@@ -1,0 +1,127 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version-file: .go-version
+          cache-dependency-path: go.sum
+      - name: Verify, rebuild, and package every target
+        run: go run ./tools/release -version "${GITHUB_REF_NAME}" -commit "${GITHUB_SHA}" -output dist
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-candidate
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+  native-smoke:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            archive: linux_amd64.tar.gz
+            executable: discord-control
+          - runner: ubuntu-24.04-arm
+            archive: linux_arm64.tar.gz
+            executable: discord-control
+          - runner: windows-2025
+            archive: windows_amd64.zip
+            executable: discord-control.exe
+          - runner: macos-15-intel
+            archive: darwin_amd64.tar.gz
+            executable: discord-control
+          - runner: macos-15
+            archive: darwin_arm64.tar.gz
+            executable: discord-control
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-candidate
+          path: dist
+      - name: Verify checksum and smoke Unix package
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=$(find dist -maxdepth 1 -name "*_${{ matrix.archive }}" -print -quit)
+          grep "  $(basename "$archive")$" dist/SHA256SUMS | (cd dist && sha256sum --check -)
+          mkdir smoke && tar -xzf "$archive" -C smoke
+          output=$(smoke/${{ matrix.executable }} version --format json)
+          printf '{"schemaVersion":"discord-control.native-smoke/v1","target":"%s","result":"passed","output":%s}\n' '${{ matrix.runner }}' "$output" > "smoke-${{ matrix.runner }}.json"
+      - name: Verify checksum and smoke Windows package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem dist/*_${{ matrix.archive }} | Select-Object -First 1
+          $expected = (Select-String -Path dist/SHA256SUMS -Pattern ([regex]::Escape($archive.Name) + '$')).Line.Split(' ')[0]
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLower() -ne $expected) { throw 'checksum mismatch' }
+          Expand-Archive $archive smoke
+          $output = & smoke/${{ matrix.executable }} version --format json
+          @{schemaVersion='discord-control.native-smoke/v1';target='${{ matrix.runner }}';result='passed';output=($output | ConvertFrom-Json)} | ConvertTo-Json -Depth 10 | Set-Content smoke-${{ matrix.runner }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: smoke-${{ matrix.runner }}
+          path: smoke-${{ matrix.runner }}.json
+          if-no-files-found: error
+  publish:
+    needs: [package, native-smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: release-candidate
+          path: dist
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: smoke-*
+          path: smoke-evidence
+          merge-multiple: true
+      - name: Add native smoke evidence to release
+        run: |
+          cp smoke-evidence/*.json dist/
+          (cd dist && sha256sum smoke-*.json >> SHA256SUMS)
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-checksums: dist/SHA256SUMS
+      - name: Attest CycloneDX SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/discord-control_*
+          sbom-path: dist/sbom.cdx.json
+      - name: Verify attestations before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          while read -r _ name; do gh attestation verify "dist/$name" --repo "$GITHUB_REPOSITORY"; done < dist/SHA256SUMS
+      - name: Publish immutable-ready release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/*
+          gh release edit "$GITHUB_REF_NAME" --draft=false

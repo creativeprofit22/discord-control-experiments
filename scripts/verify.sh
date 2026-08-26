@@ -44,7 +44,29 @@ if [[ ! -x "$GOBIN/syft" && ! -x "$GOBIN/syft.exe" ]]; then
   esac
 fi
 
-unformatted=$(gofmt -l cmd internal)
+if [[ ! -x "$GOBIN/promtool" && ! -x "$GOBIN/promtool.exe" ]]; then
+  mkdir -p "$ROOT/.tools/downloads"
+  case "$(uname -s)" in
+    Linux*)
+      prom_archive="$ROOT/.tools/downloads/prometheus-3.14.0.linux-amd64.tar.gz"
+      curl --fail --location --silent --show-error https://github.com/prometheus/prometheus/releases/download/v3.14.0/prometheus-3.14.0.linux-amd64.tar.gz -o "$prom_archive"
+      printf '%s *%s\n' f665c6da19eb7ba399c915d30c7d9793c9b417bf8a749b504bc470678631478d "$prom_archive" | sha256sum --check
+      tar -xzf "$prom_archive" --strip-components=1 -C "$GOBIN" prometheus-3.14.0.linux-amd64/promtool
+      ;;
+    MINGW*|MSYS*)
+      prom_archive="$ROOT/.tools/downloads/prometheus-3.14.0.windows-amd64.zip"
+      curl --fail --location --silent --show-error https://github.com/prometheus/prometheus/releases/download/v3.14.0/prometheus-3.14.0.windows-amd64.zip -o "$prom_archive"
+      printf '%s *%s\n' e57fbb99e4d0bc734d2f2b3aeb68c02fba38862259dc99a95c27ea46d9ccba0a "$prom_archive" | sha256sum --check
+      unzip -j -q "$prom_archive" 'prometheus-3.14.0.windows-amd64/promtool.exe' -d "$GOBIN"
+      ;;
+    *) echo 'unsupported platform for pinned promtool archive' >&2; exit 1 ;;
+  esac
+fi
+
+unpinned_actions=$(grep -RHE '^[[:space:]]*-[[:space:]]+uses:' .github/workflows | grep -Ev '@[0-9a-f]{40}([[:space:]]|$)' || true)
+[[ -z "$unpinned_actions" ]] || { printf 'workflow actions must use full commit SHAs:\n%s\n' "$unpinned_actions" >&2; exit 1; }
+
+unformatted=$(gofmt -l cmd internal benchmarks/production tools)
 if [[ -n "$unformatted" ]]; then
   printf 'gofmt required:\n%s\n' "$unformatted" >&2
   exit 1
@@ -54,6 +76,8 @@ go mod verify
 go vet ./...
 "$(tool staticcheck)" ./...
 go test ./...
+"$(tool promtool)" check rules deploy/observability/prometheus/rules.yml
+"$(tool promtool)" test rules deploy/observability/prometheus/tests.yml
 go test -race ./...
 "$(tool gosec)" -quiet ./cmd/... ./internal/...
 # Runner paths are repository-contained and argv is fixed; OS RSS sampling requires audited unsafe Windows calls.
@@ -64,14 +88,21 @@ go test -race ./...
 "$(tool gitleaks)" dir . --config .gitleaks.toml --no-banner --redact=100
 "$(tool go-licenses)" report --ignore github.com/ken-kai/discord-control-experiments ./... > reports/licenses.csv
 "$(tool go-licenses)" check --ignore github.com/ken-kai/discord-control-experiments --allowed_licenses=Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,MIT,MPL-2.0 ./...
-"$(tool syft)" dir:. -o spdx-json=reports/sbom.spdx.json --exclude './.git/**' --exclude './.tools/**'
+"$(tool syft)" dir:. -o spdx-json=reports/sbom.spdx.json -o cyclonedx-json=reports/sbom.cdx.json --exclude './.git/**' --exclude './.tools/**'
 
 rm -rf .tools/repro-a .tools/repro-b
 mkdir -p .tools/repro-a .tools/repro-b
+suffix=''
+case "$(uname -s)" in MINGW*|MSYS*) suffix='.exe' ;; esac
+first=".tools/repro-a/discord-control${suffix}"
+second=".tools/repro-b/discord-control${suffix}"
 build_flags=(-trimpath -buildvcs=false -ldflags "-s -w -buildid= -X github.com/ken-kai/discord-control-experiments/internal/buildinfo.Version=0.0.0-ci -X github.com/ken-kai/discord-control-experiments/internal/buildinfo.Commit=0000000000000000000000000000000000000000")
-CGO_ENABLED=0 go build "${build_flags[@]}" -o .tools/repro-a/discord-control ./cmd/discord-control
-CGO_ENABLED=0 go build "${build_flags[@]}" -o .tools/repro-b/discord-control ./cmd/discord-control
-hash_a=$(sha256sum .tools/repro-a/discord-control | cut -d ' ' -f 1)
-hash_b=$(sha256sum .tools/repro-b/discord-control | cut -d ' ' -f 1)
+CGO_ENABLED=0 go build "${build_flags[@]}" -o "$first" ./cmd/discord-control
+CGO_ENABLED=0 go build "${build_flags[@]}" -o "$second" ./cmd/discord-control
+hash_a=$(sha256sum "$first" | cut -d ' ' -f 1)
+hash_b=$(sha256sum "$second" | cut -d ' ' -f 1)
 [[ "$hash_a" == "$hash_b" ]] || { echo 'reproducible build hashes differ' >&2; exit 1; }
+rm -f .tools/production-quick-evidence.json .tools/documented-drills.json
+go run ./benchmarks/production -mode quick -binary "$first" -output .tools/production-quick-evidence.json
+go run ./tools/doccheck -binary "$first" -evidence .tools/documented-drills.json
 printf 'verification passed; reproducible sha256=%s\n' "$hash_a"

@@ -527,7 +527,7 @@ func (s *AutomationService) observe(ctx context.Context, run domain.AutomationRu
 	if s.Telemetry == nil {
 		return
 	}
-	s.Telemetry.ObserveWorkflow(ctx, WorkflowObservation{WorkflowID: run.Provenance.WorkflowID, RunID: run.ID, GuildID: guild, StepID: step, Event: event, Outcome: outcome, Attempt: run.Attempt, Provenance: run.Provenance})
+	s.Telemetry.ObserveWorkflow(ctx, WorkflowObservation{CorrelationID: domain.CorrelationID(run.ID), WorkflowID: run.Provenance.WorkflowID, RunID: run.ID, GuildID: guild, StepID: step, Event: event, Outcome: outcome, Attempt: run.Attempt, Provenance: run.Provenance})
 }
 
 func validateAutomationTriggerInput(request AutomationRunRequest) error {

@@ -15,6 +15,22 @@ const (
 	valid  = `{"version":1,"discord":{"token":{"source":"env","name":"DISCORD_BOT_TOKEN"}},"mcp":{"enabled":true,"guildId":"123456789012345678"},"observability":{"exporter":"none"}}`
 )
 
+func TestObservabilitySamplingDefaultsAndBounds(t *testing.T) {
+	resolved, err := Load(strings.NewReader(valid), resolver{"DISCORD_BOT_TOKEN": canary})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved.Observability.TraceSampleRatio != 0.1 {
+		t.Fatalf("trace sample ratio = %v", resolved.Observability.TraceSampleRatio)
+	}
+	for _, ratio := range []string{"-0.1", "1.1"} {
+		input := strings.Replace(valid, `"exporter":"none"`, `"exporter":"none","traceSampleRatio":`+ratio, 1)
+		if _, err := Load(strings.NewReader(input), resolver{"DISCORD_BOT_TOKEN": canary}); err == nil {
+			t.Fatalf("accepted trace sample ratio %s", ratio)
+		}
+	}
+}
+
 func TestAutomationConfigDefaultsAndBoundaries(t *testing.T) {
 	resolved, err := Load(strings.NewReader(valid), resolver{"DISCORD_BOT_TOKEN": canary})
 	if err != nil {

@@ -52,6 +52,9 @@ func validate(file File) error {
 	if err := validateModeration(*file.Moderation); err != nil {
 		return err
 	}
+	if ratio := file.Observability.TraceSampleRatio; ratio <= 0 || ratio > 1 {
+		return errors.New("observability traceSampleRatio must be greater than 0 and at most 1")
+	}
 	switch file.Observability.Exporter {
 	case "none", "stderr":
 		if file.Observability.Endpoint != "" {

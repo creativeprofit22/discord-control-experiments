@@ -19,9 +19,10 @@ func (p *Provider) StartInteractionSpan(ctx context.Context, stage string, corre
 	if !oneOf(stage, "inbound", "deferred", "callback") {
 		stage = "unknown"
 	}
+	ctx = WithCorrelationID(ctx, correlationID)
 	ctx, span := p.tracer.Start(ctx, "interaction."+stage, trace.WithAttributes(
 		attribute.String("interaction.stage", stage),
-		attribute.String("correlation.id", boundedCorrelation(correlationID)),
+		attribute.String(FieldCorrelationID, boundedCorrelation(correlationID)),
 	))
 	return ctx, func(outcome string) {
 		if !oneOf(outcome, "ok", "error", "not_available") {

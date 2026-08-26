@@ -1022,6 +1022,51 @@ Capture a declarative guild snapshot
   - `--application` (string, required)
   - `--output` (path, required)
 
+## `state backup`
+
+Create a deterministic offline configuration and state backup
+
+- Handler: `state.backup`
+- Output kind: `StateBackup`
+- Timeout: `workflow`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--output` (path, required)
+
+## `state restore`
+
+Restore a verified backup into new staging
+
+- Handler: `state.restore`
+- Output kind: `StateRestore`
+- Timeout: `workflow`
+- Mutation: `true`; destructive: `false`
+- Flags:
+  - `--backup` (path, required)
+  - `--staging` (path, required)
+
+## `state validate`
+
+Validate upgrade and rollback compatibility
+
+- Handler: `state.validate`
+- Output kind: `StateValidation`
+- Timeout: `workflow`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--backup` (path, optional)
+
+## `state verify`
+
+Verify a backup archive without extracting it
+
+- Handler: `state.verify`
+- Output kind: `StateBackupVerification`
+- Timeout: `read`
+- Mutation: `false`; destructive: `false`
+- Flags:
+  - `--backup` (path, required)
+
 ## `version`
 
 Print build and CLI API version

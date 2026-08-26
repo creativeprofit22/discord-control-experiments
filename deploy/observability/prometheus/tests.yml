@@ -1,0 +1,45 @@
+rule_files:
+  - rules.yml
+evaluation_interval: 1m
+group_eval_order:
+  - discord-control-recording
+  - discord-control-pages
+  - discord-control-tickets
+tests:
+  - name: availability hold and firing paths
+    interval: 1m
+    input_series:
+      - series: 'up{job="discord-control"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: DiscordControlUnavailable
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: DiscordControlUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: discord-control
+              severity: page
+              owner: operations
+            exp_annotations:
+              summary: Discord control is unavailable
+              runbook: docs/runbooks/startup-failure.md
+  - name: acknowledgement miss firing and healthy paths
+    interval: 1m
+    input_series:
+      - series: 'discord_interaction_ack_deadline_miss_count_total'
+        values: '0 0 0 1 2 3 4'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: InteractionAcknowledgementDeadlineMisses
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: InteractionAcknowledgementDeadlineMisses
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              owner: operations
+            exp_annotations:
+              summary: Interaction acknowledgements are missing deadlines
+              runbook: docs/runbooks/discord-outage.md

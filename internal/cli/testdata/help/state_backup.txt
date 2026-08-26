@@ -1,0 +1,3 @@
+Usage: discord-control state backup --output VALUE
+
+Create a deterministic offline configuration and state backup

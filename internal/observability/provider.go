@@ -35,6 +35,7 @@ type Options struct {
 	Redactor     *Redactor
 	SpanExporter sdktrace.SpanExporter
 	MetricReader sdkmetric.Reader
+	SampleRatio  float64
 	Security     SecurityOptions
 }
 
@@ -88,6 +89,10 @@ type Provider struct {
 	interactionRegistrations      metric.Int64Counter
 	workflowEvents                metric.Int64Counter
 	workflowScheduleLag           metric.Float64Histogram
+	exporterSucceeded             metric.Int64ObservableCounter
+	exporterFailed                metric.Int64ObservableCounter
+	exporterDropped               metric.Int64ObservableCounter
+	redactionInterventions        metric.Int64ObservableCounter
 	securityMonitor               *securityMonitor
 	build                         buildinfo.Info
 	redactor                      *Redactor
@@ -101,7 +106,17 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	health := new(exportHealth)
+	if spanExporter != nil {
+		spanExporter = countingSpanExporter{next: spanExporter, health: health}
+	}
 	traceOptions := []sdktrace.TracerProviderOption{}
+	if options.SampleRatio > 0 {
+		if options.SampleRatio > 1 {
+			return nil, errors.New("trace sample ratio must be at most 1")
+		}
+		traceOptions = append(traceOptions, sdktrace.WithSampler(countingSampler{next: sdktrace.ParentBased(sdktrace.TraceIDRatioBased(options.SampleRatio)), health: health}))
+	}
 	if spanExporter != nil {
 		traceOptions = append(traceOptions, sdktrace.WithSpanProcessor(sdktrace.NewSimpleSpanProcessor(spanExporter)))
 	}
@@ -112,6 +127,34 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 	tp := sdktrace.NewTracerProvider(traceOptions...)
 	mp := sdkmetric.NewMeterProvider(meterOptions...)
 	meter := mp.Meter("discord-control")
+	exporterSucceeded, err := meter.Int64ObservableCounter("discord.telemetry.export.succeeded", metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+		observer.Observe(health.succeeded.Load())
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
+	exporterFailed, err := meter.Int64ObservableCounter("discord.telemetry.export.failed", metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+		observer.Observe(health.failed.Load())
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
+	exporterDropped, err := meter.Int64ObservableCounter("discord.telemetry.export.dropped", metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+		observer.Observe(health.dropped.Load())
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
+	redactionInterventions, err := meter.Int64ObservableCounter("discord.telemetry.redaction.interventions", metric.WithInt64Callback(func(_ context.Context, observer metric.Int64Observer) error {
+		observer.Observe(options.Redactor.Interventions())
+		return nil
+	}))
+	if err != nil {
+		return nil, err
+	}
 	counter, err := meter.Int64Counter("discord_control.operations")
 	if err != nil {
 		return nil, err
@@ -294,7 +337,7 @@ func New(ctx context.Context, options Options) (*Provider, error) {
 		return nil, err
 	}
 	monitor := newSecurityMonitor(options.Security, logger)
-	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, moderationActions: moderationActions, moderationDuration: moderationDuration, moderationHierarchyFailures: moderationHierarchyFailures, autoModerationDrift: autoModerationDrift, escalationOutcomes: escalationOutcomes, lockdownEvents: lockdownEvents, lockdownOperationCount: lockdownOperationCount, interactionVerification: interactionVerification, interactionAckDuration: interactionAckDuration, interactionDeadlineMisses: interactionDeadlineMisses, interactionDuplicates: interactionDuplicates, interactionDeferred: interactionDeferred, interactionCallbacks: interactionCallbacks, interactionCallbackDuration: interactionCallbackDuration, interactionApprovals: interactionApprovals, interactionSaturation: interactionSaturation, interactionQueueDepth: interactionQueueDepth, interactionQueueDepthValue: interactionQueueDepthValue, interactionHandlerActive: interactionHandlerActive, interactionHandlerActiveValue: interactionHandlerActiveValue, interactionRegistrations: interactionRegistrations, workflowEvents: workflowEvents, workflowScheduleLag: workflowScheduleLag, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
+	provider := &Provider{Logger: logger, TracerProvider: tp, MeterProvider: mp, tracer: tp.Tracer("discord-control"), counter: counter, duration: duration, discordRequests: discordRequests, discordDuration: discordDuration, discordRateLimitWait: discordRateLimitWait, discordRetries: discordRetries, discordCancellations: discordCancellations, discordPartial: discordPartial, cliFailures: cliFailures, mcpInvocations: mcpInvocations, mcpDuration: mcpDuration, securityEvents: securityEvents, approvalLatency: approvalLatency, reconciliationPlanSize: reconciliationPlanSize, reconciliationRisk: reconciliationRisk, reconciliationDrift: reconciliationDrift, reconciliationConflicts: reconciliationConflicts, reconciliationStepLatency: reconciliationStepLatency, reconciliationRetries: reconciliationRetries, reconciliationPartial: reconciliationPartial, reconciliationResumes: reconciliationResumes, reconciliationOutcomes: reconciliationOutcomes, moderationActions: moderationActions, moderationDuration: moderationDuration, moderationHierarchyFailures: moderationHierarchyFailures, autoModerationDrift: autoModerationDrift, escalationOutcomes: escalationOutcomes, lockdownEvents: lockdownEvents, lockdownOperationCount: lockdownOperationCount, interactionVerification: interactionVerification, interactionAckDuration: interactionAckDuration, interactionDeadlineMisses: interactionDeadlineMisses, interactionDuplicates: interactionDuplicates, interactionDeferred: interactionDeferred, interactionCallbacks: interactionCallbacks, interactionCallbackDuration: interactionCallbackDuration, interactionApprovals: interactionApprovals, interactionSaturation: interactionSaturation, interactionQueueDepth: interactionQueueDepth, interactionQueueDepthValue: interactionQueueDepthValue, interactionHandlerActive: interactionHandlerActive, interactionHandlerActiveValue: interactionHandlerActiveValue, interactionRegistrations: interactionRegistrations, workflowEvents: workflowEvents, workflowScheduleLag: workflowScheduleLag, exporterSucceeded: exporterSucceeded, exporterFailed: exporterFailed, exporterDropped: exporterDropped, redactionInterventions: redactionInterventions, securityMonitor: monitor, build: options.Build, redactor: options.Redactor}
 	options.Redactor.SetInterventionHook(func() {
 		provider.RecordSecurityEvent(context.Background(), domain.SecurityEvent{Kind: "redaction_intervention", OccurredAt: time.Now()})
 	})
@@ -357,16 +400,19 @@ func (p *Provider) ObserveWorkflow(ctx context.Context, observation application.
 	if p == nil {
 		return
 	}
-	attributes := []attribute.KeyValue{attribute.String("workflow.event", observation.Event), attribute.String("workflow.outcome", observation.Outcome)}
+	ctx = WithCorrelationID(ctx, observation.CorrelationID)
+	event := closedValue("workflow.event", observation.Event)
+	outcome := closedValue("workflow.outcome", observation.Outcome)
+	attributes := []attribute.KeyValue{attribute.String("workflow.event", event), attribute.String("workflow.outcome", outcome)}
 	p.workflowEvents.Add(ctx, 1, metric.WithAttributes(attributes...))
 	if observation.Event == "dead_letter" || observation.Event == "source_failure" || observation.Event == "partial_failure" || observation.Event == "lease_contention" || observation.Lag > time.Minute {
-		p.Logger.WarnContext(ctx, "workflow alert", "event", observation.Event, "outcome", observation.Outcome, "workflow_id", observation.WorkflowID, "run_id", observation.RunID)
+		p.Logger.WarnContext(ctx, "workflow alert", "event", event, "outcome", outcome, "workflow_id", observation.WorkflowID, "run_id", observation.RunID)
 	}
 	if observation.Lag > 0 {
 		p.workflowScheduleLag.Record(ctx, float64(observation.Lag.Milliseconds()))
 	}
 	_, span := p.tracer.Start(ctx, "workflow."+observation.Event, trace.WithAttributes(
-		attribute.String("workflow.id", observation.WorkflowID), attribute.String("workflow.run_id", observation.RunID), attribute.String("workflow.guild_id", observation.GuildID), attribute.String("workflow.step_id", observation.StepID), attribute.String("workflow.outcome", observation.Outcome), attribute.Int("workflow.attempt", observation.Attempt), attribute.String("workflow.definition_hash", observation.Provenance.Definition), attribute.String("workflow.source_id", observation.Provenance.SourceID),
+		attribute.String(FieldCorrelationID, boundedCorrelation(observation.CorrelationID)), attribute.String("workflow.id", observation.WorkflowID), attribute.String("workflow.run_id", observation.RunID), attribute.String("workflow.guild_id", observation.GuildID), attribute.String("workflow.step_id", observation.StepID), attribute.String("workflow.outcome", outcome), attribute.Int("workflow.attempt", observation.Attempt), attribute.String("workflow.definition_hash", observation.Provenance.Definition), attribute.String("workflow.source_id", observation.Provenance.SourceID),
 	))
 	span.End()
 }
@@ -375,6 +421,7 @@ func (p *Provider) Observe(ctx context.Context, operation domain.Operation, fn f
 	if fn == nil {
 		return errors.New("observed function is required")
 	}
+	ctx = WithCorrelationID(ctx, operation.CorrelationID)
 	attrs := []attribute.KeyValue{
 		attribute.String(FieldOperation, string(operation.Name)), attribute.String(FieldAdapter, string(operation.Adapter)),
 		attribute.String(FieldCorrelationID, string(operation.CorrelationID)), attribute.Int(FieldRetryCount, operation.RetryCount),
@@ -396,7 +443,11 @@ func (p *Provider) Observe(ctx context.Context, operation domain.Operation, fn f
 	durationMS := float64(time.Since(start).Microseconds()) / 1000
 	span.SetAttributes(attribute.String(FieldResult, result), attribute.Float64(FieldDurationMS, durationMS))
 	span.End()
-	metricAttrs := metric.WithAttributes(append(attrs, attribute.String(FieldResult, result))...)
+	metricAttrs := metric.WithAttributes(
+		attribute.String(FieldOperation, string(operation.Name)),
+		attribute.String(FieldAdapter, string(operation.Adapter)),
+		attribute.String(FieldResult, closedValue(FieldResult, result)),
+	)
 	p.counter.Add(ctx, 1, metricAttrs)
 	p.duration.Record(ctx, durationMS, metricAttrs)
 	p.Logger.InfoContext(ctx, "operation completed",
@@ -412,7 +463,11 @@ func (p *Provider) ObserveDiscordCommand(ctx context.Context, observation *appli
 		return errors.New("discord observation and function are required")
 	}
 	attrs := []attribute.KeyValue{attribute.String(FieldCommandName, observation.CommandName), attribute.String(FieldRouteTemplate, observation.RouteTemplate), attribute.String(FieldHTTPMethod, observation.Method), attribute.String(FieldAPIPathVersion, "v10")}
-	ctx, span := p.tracer.Start(ctx, "discord.command."+observation.CommandName, trace.WithAttributes(attrs...))
+	spanAttrs := append([]attribute.KeyValue(nil), attrs...)
+	if correlation := correlationFromContext(ctx); correlation != "" {
+		spanAttrs = append(spanAttrs, attribute.String(FieldCorrelationID, correlation))
+	}
+	ctx, span := p.tracer.Start(ctx, "discord.command."+observation.CommandName, trace.WithAttributes(spanAttrs...))
 	started := time.Now()
 	err := fn(ctx)
 	durationMS := float64(time.Since(started).Microseconds()) / 1000
@@ -424,7 +479,9 @@ func (p *Provider) ObserveDiscordCommand(ctx context.Context, observation *appli
 			resultClass = "ok"
 		}
 	}
-	attemptAttrs := append(append([]attribute.KeyValue{}, attrs...), attribute.String(FieldStatusClass, observation.StatusClass), attribute.String(FieldResult, resultClass))
+	resultClass = closedValue(FieldResult, resultClass)
+	statusClass := closedValue(FieldStatusClass, observation.StatusClass)
+	attemptAttrs := append(append([]attribute.KeyValue{}, attrs...), attribute.String(FieldStatusClass, statusClass), attribute.String(FieldResult, resultClass))
 	for attempt := 0; attempt < observation.Attempts; attempt++ {
 		_, child := p.tracer.Start(ctx, "discord.rest.attempt", trace.WithAttributes(append(attemptAttrs, attribute.Int(FieldRetryCount, attempt))...))
 		child.End()
@@ -438,7 +495,7 @@ func (p *Provider) ObserveDiscordCommand(ctx context.Context, observation *appli
 			p.discordCancellations.Add(ctx, 1, metric.WithAttributes(attrs...))
 		}
 	}
-	span.SetAttributes(attribute.String(FieldResult, resultClass), attribute.String(FieldStatusClass, observation.StatusClass))
+	span.SetAttributes(attribute.String(FieldResult, resultClass), attribute.String(FieldStatusClass, statusClass))
 	span.End()
 	metricAttrs := metric.WithAttributes(attemptAttrs...)
 	requests := observation.Attempts
@@ -458,6 +515,7 @@ func (p *Provider) ObserveDiscordCommand(ctx context.Context, observation *appli
 }
 
 func (p *Provider) ObserveReconciliation(ctx context.Context, observation application.ReconciliationObservation) {
+	ctx = WithCorrelationID(ctx, observation.CorrelationID)
 	spanAttributes := []attribute.KeyValue{
 		attribute.String(FieldCorrelationID, string(observation.CorrelationID)),
 		attribute.String(FieldPlanHashPrefix, observation.PlanHashPrefix),

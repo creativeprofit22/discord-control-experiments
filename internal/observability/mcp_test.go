@@ -39,7 +39,7 @@ func TestMCPInvocationSpanCarriesCorrelationAndCancellationClass(t *testing.T) {
 		t.Fatalf("span name=%q status=%#v", span.Name, span.Status)
 	}
 	serialized := fmt.Sprint(span)
-	for _, expected := range []string{"mcp.tool", "get_channel", "mcp.result", "cancelled", "correlation.id", "correlation-123"} {
+	for _, expected := range []string{"mcp.tool", "get_channel", "mcp.result", "cancelled", FieldCorrelationID, "correlation-123"} {
 		if !strings.Contains(serialized, expected) {
 			t.Fatalf("span missing %q: %s", expected, serialized)
 		}

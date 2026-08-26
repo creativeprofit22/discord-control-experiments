@@ -1389,6 +1389,56 @@
           ],
           "type": "object"
         },
+        "state backup": {
+          "additionalProperties": false,
+          "properties": {
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "output"
+          ],
+          "type": "object"
+        },
+        "state restore": {
+          "additionalProperties": false,
+          "properties": {
+            "backup": {
+              "type": "string"
+            },
+            "staging": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "backup",
+            "staging"
+          ],
+          "type": "object"
+        },
+        "state validate": {
+          "additionalProperties": false,
+          "properties": {
+            "backup": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "type": "object"
+        },
+        "state verify": {
+          "additionalProperties": false,
+          "properties": {
+            "backup": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "backup"
+          ],
+          "type": "object"
+        },
         "version": {
           "additionalProperties": false,
           "properties": {},
