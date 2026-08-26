@@ -16,6 +16,7 @@ func TestReleaseWorkflowContract(t *testing.T) {
 	for _, required := range []string{
 		"(cd dist && sha256sum smoke-*.json >> SHA256SUMS)",
 		`gh attestation verify "dist/$name"`,
+		`GH_REPO: ${{ github.repository }}`,
 		`gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes`,
 		`gh release upload "$GITHUB_REF_NAME" dist/*`,
 		`gh release edit "$GITHUB_REF_NAME" --draft=false`,
