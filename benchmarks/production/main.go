@@ -35,6 +35,19 @@ type evidence struct {
 	Passed        bool               `json:"passed"`
 }
 
+type memorySample struct {
+	elapsed   time.Duration
+	rss       uint64
+	heapAlloc uint64
+}
+
+const (
+	// Soak samples begin after this warmup; each sample follows a forced GC so RSS and
+	// HeapAlloc represent retained steady state rather than startup or allocation churn.
+	soakWarmupDuration = 2 * time.Second
+	soakSampleInterval = time.Second
+)
+
 type scriptedTransport struct {
 	mu       sync.Mutex
 	statuses []int
@@ -79,13 +92,7 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	passed := true
-	for name, value := range measurements {
-		limit, ok := limits[name]
-		if !ok || limit.Minimum && value < limit.Limit || !limit.Minimum && value > limit.Limit {
-			passed = false
-		}
-	}
+	passed := passesBudgets(*mode, measurements, limits)
 	report := evidence{SchemaVersion: "discord-control.production-benchmark/v1", Mode: *mode, Measurements: measurements, Passed: passed}
 	encoded, _ := json.MarshalIndent(report, "", "  ")
 	encoded = append(encoded, '\n')
@@ -121,7 +128,7 @@ func measure(mode string, duration time.Duration, binary string) (map[string]flo
 	iterations := 500
 	if mode == "soak" {
 		iterations = 0
-		warmUntil := time.Now().Add(2 * time.Second)
+		warmUntil := time.Now().Add(soakWarmupDuration)
 		for time.Now().Before(warmUntil) {
 			if _, err := client.ExecuteDiscord(context.Background(), domain.ListGuildChannels{CommandContext: domain.CommandContext{GuildID: "123456789012345678"}}); err != nil {
 				return nil, err
@@ -129,11 +136,18 @@ func measure(mode string, duration time.Duration, binary string) (map[string]flo
 		}
 	}
 	latencies := make([]float64, 0, max(iterations, 4096))
-	runtime.GC()
-	var memoryBefore runtime.MemStats
-	runtime.ReadMemStats(&memoryBefore)
 	var requestCount int64
 	benchmarkStarted := time.Now()
+	var memorySamples []memorySample
+	nextMemorySample := benchmarkStarted
+	if mode == "soak" {
+		sample, err := readMemorySample(benchmarkStarted)
+		if err != nil {
+			return nil, err
+		}
+		memorySamples = append(memorySamples, sample)
+		nextMemorySample = benchmarkStarted.Add(soakSampleInterval)
+	}
 	for iterations > 0 || mode == "soak" && time.Since(benchmarkStarted) < duration {
 		requestStarted := time.Now()
 		_, err := client.ExecuteDiscord(context.Background(), domain.ListGuildChannels{CommandContext: domain.CommandContext{GuildID: "123456789012345678"}})
@@ -150,11 +164,23 @@ func measure(mode string, duration time.Duration, binary string) (map[string]flo
 		if iterations > 0 {
 			iterations--
 		}
+		if mode == "soak" && !time.Now().Before(nextMemorySample) {
+			sample, err := readMemorySample(benchmarkStarted)
+			if err != nil {
+				return nil, err
+			}
+			memorySamples = append(memorySamples, sample)
+			nextMemorySample = time.Now().Add(soakSampleInterval)
+		}
 	}
 	elapsed := time.Since(benchmarkStarted).Seconds()
-	runtime.GC()
-	var memoryAfter runtime.MemStats
-	runtime.ReadMemStats(&memoryAfter)
+	if mode == "soak" {
+		sample, err := readMemorySample(benchmarkStarted)
+		if err != nil {
+			return nil, err
+		}
+		memorySamples = append(memorySamples, sample)
+	}
 	measurements["rest_p99_ms"] = percentile(latencies, 0.99)
 	measurements["rest_requests_per_second"] = float64(requestCount) / elapsed
 
@@ -189,15 +215,77 @@ func measure(mode string, duration time.Duration, binary string) (map[string]flo
 	measurements["discord_degraded_ms"] = float64(time.Since(degradedStarted).Milliseconds())
 	measurements["duplicate_mutations"] = float64(max(0, int(mutationRequests-1)))
 
-	measurements["peak_rss_bytes"] = float64(currentRSS())
-	if mode == "soak" {
-		growth := float64(0)
-		if memoryAfter.HeapAlloc > memoryBefore.HeapAlloc {
-			growth = float64(memoryAfter.HeapAlloc-memoryBefore.HeapAlloc) / elapsed * 3600
+	lifetimePeak := uint64(0)
+	if mode == "quick" {
+		lifetimePeak = peakRSS()
+		if lifetimePeak == 0 {
+			return nil, errors.New("peak RSS is unavailable")
 		}
-		measurements["memory_growth_bytes_per_hour"] = growth
+	}
+	for name, value := range memoryMeasurements(mode, lifetimePeak, memorySamples) {
+		measurements[name] = value
 	}
 	return measurements, nil
+}
+
+func readMemorySample(started time.Time) (memorySample, error) {
+	runtime.GC()
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	rss := currentRSS()
+	if rss == 0 {
+		return memorySample{}, errors.New("current RSS is unavailable")
+	}
+	return memorySample{elapsed: time.Since(started), rss: rss, heapAlloc: stats.HeapAlloc}, nil
+}
+
+func memoryMeasurements(mode string, lifetimePeak uint64, samples []memorySample) map[string]float64 {
+	if mode == "quick" {
+		return map[string]float64{"peak_rss_bytes": float64(lifetimePeak)}
+	}
+	steadyStateRSS := uint64(0)
+	for _, sample := range samples {
+		steadyStateRSS = max(steadyStateRSS, sample.rss)
+	}
+	return map[string]float64{
+		"steady_state_rss_bytes":       float64(steadyStateRSS),
+		"memory_growth_bytes_per_hour": heapGrowthSlope(samples),
+	}
+}
+
+func heapGrowthSlope(samples []memorySample) float64 {
+	if len(samples) < 2 {
+		return 0
+	}
+	var sumX, sumY, sumXX, sumXY float64
+	for _, sample := range samples {
+		x := sample.elapsed.Seconds()
+		y := float64(sample.heapAlloc)
+		sumX += x
+		sumY += y
+		sumXX += x * x
+		sumXY += x * y
+	}
+	count := float64(len(samples))
+	denominator := count*sumXX - sumX*sumX
+	if denominator <= 0 {
+		return 0
+	}
+	return max(0, (count*sumXY-sumX*sumY)/denominator*3600)
+}
+
+func passesBudgets(mode string, measurements map[string]float64, limits budgets) bool {
+	for name, value := range measurements {
+		budgetName := name
+		if mode == "soak" && name == "steady_state_rss_bytes" {
+			budgetName = "peak_rss_bytes"
+		}
+		limit, ok := limits[budgetName]
+		if !ok || limit.Minimum && value < limit.Limit || !limit.Minimum && value > limit.Limit {
+			return false
+		}
+	}
+	return true
 }
 
 func percentile(values []float64, quantile float64) float64 {
