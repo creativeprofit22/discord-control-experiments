@@ -15,7 +15,7 @@
     "discord.js": "14.27.0"
   },
   "devDependencies": {
-    "@types/node": "24.13.3",
+    "@types/node": "26.4.0",
     "typescript": "6.0.3"
   },
   "pnpm": {
